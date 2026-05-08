@@ -50,7 +50,7 @@ export function normalizeImages(data: unknown): string[] {
   const arr = (data as { data?: Array<{ url?: string; b64_json?: string }> })?.data ?? [];
   return arr
     .map((x) => {
-      if (x.url) return x.url;
+      if (x.url) return `/api/image?u=${encodeURIComponent(x.url)}`;
       if (x.b64_json) return `data:image/png;base64,${x.b64_json}`;
       return "";
     })
