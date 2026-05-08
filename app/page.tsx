@@ -5,7 +5,9 @@ import GenerateForm from "@/components/GenerateForm";
 import EditForm from "@/components/EditForm";
 import ResultGrid from "@/components/ResultGrid";
 import HistoryPanel from "@/components/HistoryPanel";
+import SkillsDrawer from "@/components/SkillsDrawer";
 import { HistoryItem, loadHistory, saveHistoryItem } from "@/lib/history";
+import { Skill, loadSkills } from "@/lib/skills";
 
 type Tab = "generate" | "edit";
 
@@ -23,6 +25,8 @@ export default function Page() {
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [activePrompt, setActivePrompt] = useState("");
+  const [skills, setSkills] = useState<Skill[]>([]);
+  const [skillsOpen, setSkillsOpen] = useState(false);
 
   useEffect(() => {
     fetch("/api/config")
@@ -34,6 +38,7 @@ export default function Page() {
       })
       .catch(() => {});
     setHistory(loadHistory());
+    setSkills(loadSkills());
   }, []);
 
   const onResult = (item: HistoryItem) => {
@@ -69,6 +74,8 @@ export default function Page() {
         </a>
       </header>
 
+      <SkillsDrawer open={skillsOpen} onClose={() => setSkillsOpen(false)} onChange={setSkills} />
+
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[360px_1fr]">
         <aside className="space-y-4">
           <div className="card flex p-1">
@@ -99,6 +106,8 @@ export default function Page() {
               models={models}
               sizes={sizes}
               enhanceModels={enhanceModels}
+              skills={skills}
+              onOpenSkills={() => setSkillsOpen(true)}
               initialPrompt={activePrompt}
               loading={loading}
               setLoading={setLoading}
@@ -111,6 +120,8 @@ export default function Page() {
               models={models}
               sizes={sizes}
               enhanceModels={enhanceModels}
+              skills={skills}
+              onOpenSkills={() => setSkillsOpen(true)}
               initialPrompt={activePrompt}
               loading={loading}
               setLoading={setLoading}

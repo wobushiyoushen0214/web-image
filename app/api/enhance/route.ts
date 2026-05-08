@@ -10,7 +10,7 @@ Take the user's brief idea (Chinese or English) and rewrite it as a single high-
 Rules:
 - Output only the final English prompt. No quotes, no explanations, no preamble, no trailing notes.
 - Keep the user's core subject and intent. Add concrete visual detail: subject specifics, composition, lighting, mood, color palette, style/medium, lens or camera cues if photographic, and quality tags (e.g. highly detailed, sharp focus).
-- 60-120 words. One paragraph. Comma-separated phrases are fine.
+- HARD LIMIT: 30-60 words. One paragraph. Comma-separated phrases are fine. NEVER exceed 60 words.
 - Do not invent text content the user didn't ask for. Do not add watermarks or signatures.`;
 
 const SYSTEM_PROMPT_ZH = `你是一名资深的文生图 Prompt 工程师。
@@ -18,8 +18,11 @@ const SYSTEM_PROMPT_ZH = `你是一名资深的文生图 Prompt 工程师。
 规则：
 - 只输出最终的中文 Prompt。不要引号、不要解释、不要任何前后缀。
 - 保留用户的核心主体和意图。补充具体视觉细节：主体特征、构图、光线、氛围、色彩、风格/媒介、镜头/相机信息（若为摄影），以及质量标签（如：高度细致、锐利对焦）。
-- 80-160 字。一段文字。短语之间用逗号分隔即可。
+- 硬性限制：50-100 字，一段文字。短语之间用逗号分隔即可。绝对不要超过 100 字。
 - 不要凭空添加用户没要求的文字内容；不要加水印或署名。`;
+
+const MAX_OUTPUT_CHARS = 600;
+const MAX_INPUT_CHARS = 500;
 
 export async function POST(req: NextRequest) {
   const ip = getClientIp(req.headers);
@@ -38,12 +41,29 @@ export async function POST(req: NextRequest) {
   if (!body || typeof body.prompt !== "string" || !body.prompt.trim()) {
     return NextResponse.json({ error: "prompt is required" }, { status: 400 });
   }
+  if (body.prompt.length > MAX_INPUT_CHARS) {
+    return NextResponse.json(
+      { error: `输入过长，最多 ${MAX_INPUT_CHARS} 字（当前 ${body.prompt.length}）` },
+      { status: 400 },
+    );
+  }
   const model =
     typeof body.model === "string" && ENHANCE_MODELS.includes(body.model)
       ? body.model
       : ENHANCE_MODELS[0];
   const lang = body.lang === "zh" ? "zh" : "en";
   const systemPrompt = lang === "zh" ? SYSTEM_PROMPT_ZH : SYSTEM_PROMPT_EN;
+
+  const skills = Array.isArray(body.skills)
+    ? body.skills.filter((s: unknown): s is string => typeof s === "string" && s.trim().length > 0)
+    : [];
+  const totalSkillChars = skills.reduce((n: number, s: string) => n + s.length, 0);
+  if (totalSkillChars > 20000) {
+    return NextResponse.json({ error: "启用的 Skills 总长度过大（>20000 字）" }, { status: 400 });
+  }
+  const finalSystem = skills.length
+    ? `${systemPrompt}\n\n---\nAdditional style & behavior instructions from user-uploaded skills. Treat them as authoritative style overrides while still obeying the output format rules above.\n\n${skills.join("\n\n---\n\n")}`
+    : systemPrompt;
 
   const upstream = await fetch(`${ENHANCE_BASE_URL}/chat/completions`, {
     method: "POST",
@@ -55,7 +75,7 @@ export async function POST(req: NextRequest) {
       model,
       temperature: 0.7,
       messages: [
-        { role: "system", content: systemPrompt },
+        { role: "system", content: finalSystem },
         { role: "user", content: body.prompt },
       ],
     }),
@@ -97,5 +117,7 @@ export async function POST(req: NextRequest) {
       { status: 502 },
     );
   }
-  return NextResponse.json({ prompt: cleaned });
+  const truncated =
+    cleaned.length > MAX_OUTPUT_CHARS ? cleaned.slice(0, MAX_OUTPUT_CHARS).replace(/[,，;；]\s*[^,，;；]*$/, "") : cleaned;
+  return NextResponse.json({ prompt: truncated });
 }

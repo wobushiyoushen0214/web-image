@@ -23,6 +23,12 @@ export async function POST(req: NextRequest) {
   if (!body || typeof body.prompt !== "string" || !body.prompt.trim()) {
     return NextResponse.json({ error: "prompt is required" }, { status: 400 });
   }
+  if (body.prompt.length > 1000) {
+    return NextResponse.json(
+      { error: `Prompt 过长，最多 1000 字（当前 ${body.prompt.length}）` },
+      { status: 400 },
+    );
+  }
 
   const payload: Record<string, unknown> = {
     model: body.model ?? "gpt-image-2",

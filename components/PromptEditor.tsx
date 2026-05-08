@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { Skill } from "@/lib/skills";
 
 type Props = {
   value: string;
@@ -10,7 +11,11 @@ type Props = {
   placeholder?: string;
   minHeight?: string;
   setError: (s: string | null) => void;
+  skills: Skill[];
+  onOpenSkills: () => void;
 };
+
+const MAX_CHARS = 1000;
 
 export default function PromptEditor({
   value,
@@ -20,6 +25,8 @@ export default function PromptEditor({
   placeholder,
   minHeight = "min-h-[140px]",
   setError,
+  skills,
+  onOpenSkills,
 }: Props) {
   const [enhancing, setEnhancing] = useState(false);
   const [model, setModel] = useState(enhanceModels[0] ?? "");
@@ -32,15 +39,18 @@ export default function PromptEditor({
     }
   }, [enhanceModels, model]);
 
+  const activeCount = skills.filter((s) => s.enabled).length;
+
   const enhance = async () => {
     if (!value.trim() || enhancing) return;
     setEnhancing(true);
     setError(null);
     try {
+      const activeSkills = skills.filter((s) => s.enabled).map((s) => `## Skill: ${s.name}\n${s.content.trim()}`);
       const res = await fetch("/api/enhance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: value, model, lang }),
+        body: JSON.stringify({ prompt: value, model, lang, skills: activeSkills }),
       });
       const raw = await res.text();
       let data: any;
@@ -63,12 +73,23 @@ export default function PromptEditor({
     <div>
       <div className="mb-1.5 flex items-center justify-between">
         <label className="label !mb-0">Prompt</label>
-        <span className="text-[11px] text-white/30">{value.length} 字</span>
+        <span
+          className={`text-[11px] ${
+            value.length > MAX_CHARS
+              ? "text-red-400"
+              : value.length > MAX_CHARS * 0.9
+              ? "text-amber-400"
+              : "text-white/30"
+          }`}
+        >
+          {value.length} / {MAX_CHARS}
+        </span>
       </div>
       <div className="overflow-hidden rounded-lg border border-white/10 bg-white/5 transition focus-within:border-accent/60 focus-within:bg-white/[0.07] focus-within:ring-2 focus-within:ring-accent/20">
         <textarea
           className={`block w-full ${minHeight} resize-y bg-transparent px-3 py-2.5 text-sm leading-relaxed text-white placeholder:text-white/30 outline-none`}
           value={value}
+          maxLength={MAX_CHARS}
           onChange={(e) => onChange(e.target.value)}
           onCompositionEnd={(e) => onChange((e.target as HTMLTextAreaElement).value)}
           onKeyDown={(e) => {
@@ -136,6 +157,18 @@ export default function PromptEditor({
                 中
               </button>
             </div>
+            <button
+              type="button"
+              onClick={onOpenSkills}
+              className={`flex items-center gap-1 rounded-md px-2 py-1 text-[11px] transition ${
+                activeCount > 0
+                  ? "bg-accent/20 text-accent hover:bg-accent/30"
+                  : "text-white/50 hover:bg-white/10 hover:text-white"
+              }`}
+              title="管理 Skills（上传 markdown 风格指令）"
+            >
+              🎯 Skills{activeCount > 0 ? ` · ${activeCount}` : ""}
+            </button>
           </div>
           <button
             type="button"

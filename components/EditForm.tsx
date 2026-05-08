@@ -2,12 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { HistoryItem, genId, normalizeImages } from "@/lib/history";
+import type { Skill } from "@/lib/skills";
 import PromptEditor from "./PromptEditor";
 
 type Props = {
   models: string[];
   sizes: string[];
   enhanceModels: string[];
+  skills: Skill[];
+  onOpenSkills: () => void;
   initialPrompt: string;
   loading: boolean;
   setLoading: (b: boolean) => void;
@@ -20,6 +23,8 @@ export default function EditForm({
   models,
   sizes,
   enhanceModels,
+  skills,
+  onOpenSkills,
   initialPrompt,
   loading,
   setLoading,
@@ -48,6 +53,27 @@ export default function EditForm({
     setPreview(url);
     return () => URL.revokeObjectURL(url);
   }, [file]);
+
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const item of Array.from(items)) {
+        if (item.kind === "file" && item.type.startsWith("image/")) {
+          const f = item.getAsFile();
+          if (f) {
+            setFile(f);
+            e.preventDefault();
+            return;
+          }
+        }
+      }
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, []);
+
+  const [dragOver, setDragOver] = useState(false);
 
   const submit = async () => {
     if (loading) return;
@@ -96,8 +122,25 @@ export default function EditForm({
   return (
     <div className="card space-y-4 p-4">
       <div>
-        <label className="label">原图</label>
-        <label className="group relative flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-white/15 bg-white/[0.02] p-4 text-sm text-white/50 transition hover:border-accent/50 hover:text-white">
+        <label className="label">原图（支持点击 / 拖拽 / 粘贴）</label>
+        <label
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragOver(true);
+          }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragOver(false);
+            const f = e.dataTransfer.files?.[0];
+            if (f && f.type.startsWith("image/")) setFile(f);
+          }}
+          className={`group relative flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-4 text-sm transition ${
+            dragOver
+              ? "border-accent bg-accent/10 text-white"
+              : "border-white/15 bg-white/[0.02] text-white/50 hover:border-accent/50 hover:text-white"
+          }`}
+        >
           <input
             type="file"
             accept="image/*"
@@ -110,7 +153,7 @@ export default function EditForm({
           ) : (
             <>
               <div className="text-2xl opacity-40">⬆</div>
-              <div>点击上传图片</div>
+              <div>点击选择 / 拖拽 / ⌘V 粘贴</div>
               <div className="text-[11px] text-white/30">PNG / JPG，建议正方形</div>
             </>
           )}
@@ -128,6 +171,8 @@ export default function EditForm({
         onSubmit={submit}
         enhanceModels={enhanceModels}
         setError={setError}
+        skills={skills}
+        onOpenSkills={onOpenSkills}
         minHeight="min-h-[100px]"
         placeholder="描述要如何修改这张图，中英文均可，点 ✨ 可一键扩写  (⌘/Ctrl + Enter 提交)"
       />

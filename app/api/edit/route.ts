@@ -29,6 +29,12 @@ export async function POST(req: NextRequest) {
   if (typeof prompt !== "string" || !prompt.trim()) {
     return NextResponse.json({ error: "prompt is required" }, { status: 400 });
   }
+  if (prompt.length > 1000) {
+    return NextResponse.json(
+      { error: `Prompt 过长，最多 1000 字（当前 ${prompt.length}）` },
+      { status: 400 },
+    );
+  }
   if (!(image instanceof File)) {
     return NextResponse.json({ error: "image file is required" }, { status: 400 });
   }

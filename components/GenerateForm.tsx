@@ -2,12 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { HistoryItem, genId, normalizeImages } from "@/lib/history";
+import type { Skill } from "@/lib/skills";
 import PromptEditor from "./PromptEditor";
 
 type Props = {
   models: string[];
   sizes: string[];
   enhanceModels: string[];
+  skills: Skill[];
+  onOpenSkills: () => void;
   initialPrompt: string;
   loading: boolean;
   setLoading: (b: boolean) => void;
@@ -29,6 +32,8 @@ export default function GenerateForm({
   models,
   sizes,
   enhanceModels,
+  skills,
+  onOpenSkills,
   initialPrompt,
   loading,
   setLoading,
@@ -98,6 +103,8 @@ export default function GenerateForm({
           onSubmit={submit}
           enhanceModels={enhanceModels}
           setError={setError}
+          skills={skills}
+          onOpenSkills={onOpenSkills}
           placeholder="描述你想要的画面，中英文均可，点 ✨ 可一键扩写成详细英文 Prompt  (⌘/Ctrl + Enter 提交)"
         />
         {!prompt && (
