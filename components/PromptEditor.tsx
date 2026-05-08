@@ -65,9 +65,9 @@ export default function PromptEditor({
         <label className="label !mb-0">Prompt</label>
         <span className="text-[11px] text-white/30">{value.length} 字</span>
       </div>
-      <div className="relative">
+      <div className="overflow-hidden rounded-lg border border-white/10 bg-white/5 transition focus-within:border-accent/60 focus-within:bg-white/[0.07] focus-within:ring-2 focus-within:ring-accent/20">
         <textarea
-          className={`input ${minHeight} resize-y pb-12 leading-relaxed`}
+          className={`block w-full ${minHeight} resize-y bg-transparent px-3 py-2.5 text-sm leading-relaxed text-white placeholder:text-white/30 outline-none`}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onCompositionEnd={(e) => onChange((e.target as HTMLTextAreaElement).value)}
@@ -76,38 +76,45 @@ export default function PromptEditor({
           }}
           placeholder={placeholder}
         />
-        <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between gap-2">
+        <div className="flex items-center justify-between gap-2 border-t border-white/5 bg-black/20 px-2 py-1.5">
           <div className="flex items-center gap-1.5">
             <div className="relative">
               <button
                 type="button"
                 onClick={() => setShowModelMenu((s) => !s)}
-                className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-white/60 transition hover:border-white/20 hover:text-white"
+                className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-white/60 transition hover:bg-white/10 hover:text-white"
                 title="选择美化模型"
               >
-                {model.split("/").pop()} ▾
+                <span className="opacity-50">模型</span>
+                <span>{model.split("/").pop()}</span>
+                <svg width="10" height="10" viewBox="0 0 12 12" className="opacity-60">
+                  <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
               </button>
               {showModelMenu && (
-                <div className="absolute bottom-full left-0 z-10 mb-1 min-w-[180px] overflow-hidden rounded-lg border border-white/10 bg-[#15171c] shadow-xl">
-                  {enhanceModels.map((m) => (
-                    <button
-                      key={m}
-                      type="button"
-                      onClick={() => {
-                        setModel(m);
-                        setShowModelMenu(false);
-                      }}
-                      className={`block w-full px-3 py-2 text-left text-xs transition hover:bg-white/10 ${
-                        m === model ? "text-accent" : "text-white/70"
-                      }`}
-                    >
-                      {m}
-                    </button>
-                  ))}
-                </div>
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowModelMenu(false)} />
+                  <div className="absolute bottom-full left-0 z-20 mb-1 min-w-[200px] overflow-hidden rounded-lg border border-white/10 bg-[#15171c] shadow-2xl">
+                    {enhanceModels.map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => {
+                          setModel(m);
+                          setShowModelMenu(false);
+                        }}
+                        className={`block w-full px-3 py-2 text-left text-xs transition hover:bg-white/10 ${
+                          m === model ? "bg-accent/10 text-accent" : "text-white/70"
+                        }`}
+                      >
+                        {m}
+                      </button>
+                    ))}
+                  </div>
+                </>
               )}
             </div>
-            <div className="flex overflow-hidden rounded-md border border-white/10 bg-white/5 text-[11px]">
+            <div className="flex overflow-hidden rounded-md bg-white/5 text-[11px]">
               <button
                 type="button"
                 onClick={() => setLang("en")}
@@ -134,12 +141,12 @@ export default function PromptEditor({
             type="button"
             onClick={enhance}
             disabled={enhancing || !value.trim()}
-            className="inline-flex items-center gap-1.5 rounded-md border border-accent/40 bg-accent/15 px-2.5 py-1 text-[11px] font-medium text-accent transition hover:bg-accent/25 disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex items-center gap-1.5 rounded-md bg-gradient-to-r from-accent to-pink-500 px-3 py-1 text-[11px] font-medium text-white shadow shadow-accent/30 transition hover:shadow-accent/50 disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
             title="用 AI 把当前描述扩写成详细 Prompt"
           >
             {enhancing ? (
               <>
-                <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-accent/40 border-t-accent" />
+                <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-white/40 border-t-white" />
                 美化中…
               </>
             ) : (
