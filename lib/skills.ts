@@ -50,9 +50,15 @@ export function toggleSkill(id: string): Skill[] {
 export function activeSkillsContent(skills: Skill[]): string {
   const active = skills.filter((s) => s.enabled);
   if (!active.length) return "";
-  return active
-    .map((s) => `## Skill: ${s.name}\n${s.content.trim()}`)
-    .join("\n\n");
+  return active.map((s) => s.content.trim()).join("\n\n---\n\n");
+}
+
+export function composePrompt(userPrompt: string, skills: Skill[]): string {
+  const skillText = activeSkillsContent(skills);
+  if (!skillText) return userPrompt;
+  const user = userPrompt.trim();
+  if (!user) return skillText;
+  return `${skillText}\n\n---\n\nUser input:\n${user}`;
 }
 
 export const SKILL_MAX = MAX_CONTENT;

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { HistoryItem, genId, normalizeImages } from "@/lib/history";
 import type { Skill } from "@/lib/skills";
+import { composePrompt } from "@/lib/skills";
 import PromptEditor from "./PromptEditor";
 
 type Props = {
@@ -53,9 +54,9 @@ export default function GenerateForm({
 
   const submit = async () => {
     if (loading) return;
-    const finalPrompt = prompt.trim();
-    if (!finalPrompt) {
-      setError("请先输入 Prompt");
+    const finalPrompt = composePrompt(prompt.trim(), skills);
+    if (!finalPrompt.trim()) {
+      setError("请先输入 Prompt 或启用一个 Skill");
       return;
     }
     setLoadingCount(n);

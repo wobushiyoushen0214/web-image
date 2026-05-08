@@ -29,9 +29,9 @@ export async function POST(req: NextRequest) {
   if (typeof prompt !== "string" || !prompt.trim()) {
     return NextResponse.json({ error: "prompt is required" }, { status: 400 });
   }
-  if (prompt.length > 1000) {
+  if (prompt.length > 8000) {
     return NextResponse.json(
-      { error: `Prompt 过长，最多 1000 字（当前 ${prompt.length}）` },
+      { error: `Prompt 过长，最多 8000 字（当前 ${prompt.length}）` },
       { status: 400 },
     );
   }

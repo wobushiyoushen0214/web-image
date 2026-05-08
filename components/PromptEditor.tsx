@@ -86,6 +86,18 @@ export default function PromptEditor({
         </span>
       </div>
       <div className="overflow-hidden rounded-lg border border-white/10 bg-white/5 transition focus-within:border-accent/60 focus-within:bg-white/[0.07] focus-within:ring-2 focus-within:ring-accent/20">
+        {activeCount > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5 border-b border-white/5 bg-accent/5 px-3 py-1.5 text-[11px]">
+            <span className="text-accent">✓ {activeCount} 个 Skill 将自动拼到 Prompt：</span>
+            {skills
+              .filter((s) => s.enabled)
+              .map((s) => (
+                <span key={s.id} className="rounded bg-accent/20 px-1.5 py-0.5 text-accent">
+                  {s.name}
+                </span>
+              ))}
+          </div>
+        )}
         <textarea
           className={`block w-full ${minHeight} resize-y bg-transparent px-3 py-2.5 text-sm leading-relaxed text-white placeholder:text-white/30 outline-none`}
           value={value}

@@ -61,9 +61,12 @@ export async function POST(req: NextRequest) {
   if (totalSkillChars > 20000) {
     return NextResponse.json({ error: "启用的 Skills 总长度过大（>20000 字）" }, { status: 400 });
   }
-  const finalSystem = skills.length
-    ? `${systemPrompt}\n\n---\nAdditional style & behavior instructions from user-uploaded skills. Treat them as authoritative style overrides while still obeying the output format rules above.\n\n${skills.join("\n\n---\n\n")}`
-    : systemPrompt;
+
+  const userMessage = skills.length
+    ? `${skills.join("\n\n---\n\n")}\n\n---\n\nUser input:\n${body.prompt}`
+    : body.prompt;
+
+  console.log(`[enhance] model=${model} lang=${lang} skills=${skills.length} userLen=${userMessage.length}`);
 
   const upstream = await fetch(`${ENHANCE_BASE_URL}/chat/completions`, {
     method: "POST",
@@ -75,8 +78,8 @@ export async function POST(req: NextRequest) {
       model,
       temperature: 0.7,
       messages: [
-        { role: "system", content: finalSystem },
-        { role: "user", content: body.prompt },
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userMessage },
       ],
     }),
   });
