@@ -24,6 +24,7 @@ export default function PromptEditor({
   const [enhancing, setEnhancing] = useState(false);
   const [model, setModel] = useState(enhanceModels[0] ?? "");
   const [showModelMenu, setShowModelMenu] = useState(false);
+  const [lang, setLang] = useState<"en" | "zh">("en");
 
   const enhance = async () => {
     if (!value.trim() || enhancing) return;
@@ -33,7 +34,7 @@ export default function PromptEditor({
       const res = await fetch("/api/enhance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: value, model }),
+        body: JSON.stringify({ prompt: value, model, lang }),
       });
       const raw = await res.text();
       let data: any;
@@ -70,41 +71,65 @@ export default function PromptEditor({
           placeholder={placeholder}
         />
         <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between gap-2">
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setShowModelMenu((s) => !s)}
-              className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-white/60 transition hover:border-white/20 hover:text-white"
-              title="选择美化模型"
-            >
-              {model.split("/").pop()} ▾
-            </button>
-            {showModelMenu && (
-              <div className="absolute bottom-full left-0 z-10 mb-1 min-w-[180px] overflow-hidden rounded-lg border border-white/10 bg-[#15171c] shadow-xl">
-                {enhanceModels.map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => {
-                      setModel(m);
-                      setShowModelMenu(false);
-                    }}
-                    className={`block w-full px-3 py-2 text-left text-xs transition hover:bg-white/10 ${
-                      m === model ? "text-accent" : "text-white/70"
-                    }`}
-                  >
-                    {m}
-                  </button>
-                ))}
-              </div>
-            )}
+          <div className="flex items-center gap-1.5">
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowModelMenu((s) => !s)}
+                className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[11px] text-white/60 transition hover:border-white/20 hover:text-white"
+                title="选择美化模型"
+              >
+                {model.split("/").pop()} ▾
+              </button>
+              {showModelMenu && (
+                <div className="absolute bottom-full left-0 z-10 mb-1 min-w-[180px] overflow-hidden rounded-lg border border-white/10 bg-[#15171c] shadow-xl">
+                  {enhanceModels.map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => {
+                        setModel(m);
+                        setShowModelMenu(false);
+                      }}
+                      className={`block w-full px-3 py-2 text-left text-xs transition hover:bg-white/10 ${
+                        m === model ? "text-accent" : "text-white/70"
+                      }`}
+                    >
+                      {m}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="flex overflow-hidden rounded-md border border-white/10 bg-white/5 text-[11px]">
+              <button
+                type="button"
+                onClick={() => setLang("en")}
+                className={`px-2 py-1 transition ${
+                  lang === "en" ? "bg-white/15 text-white" : "text-white/50 hover:text-white"
+                }`}
+                title="美化输出为英文"
+              >
+                EN
+              </button>
+              <button
+                type="button"
+                onClick={() => setLang("zh")}
+                className={`px-2 py-1 transition ${
+                  lang === "zh" ? "bg-white/15 text-white" : "text-white/50 hover:text-white"
+                }`}
+                title="美化输出为中文"
+              >
+                中
+              </button>
+            </div>
           </div>
           <button
             type="button"
             onClick={enhance}
             disabled={enhancing || !value.trim()}
             className="inline-flex items-center gap-1.5 rounded-md border border-accent/40 bg-accent/15 px-2.5 py-1 text-[11px] font-medium text-accent transition hover:bg-accent/25 disabled:cursor-not-allowed disabled:opacity-40"
-            title="用 AI 把当前描述扩写成详细英文 Prompt"
+            title="用 AI 把当前描述扩写成详细 Prompt"
           >
             {enhancing ? (
               <>

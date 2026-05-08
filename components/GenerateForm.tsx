@@ -17,10 +17,12 @@ type Props = {
 };
 
 const SUGGESTIONS = [
-  "A serene Japanese garden in autumn, cinematic lighting, 4k",
-  "Cyberpunk street at night, neon reflections on wet pavement",
-  "Cute corgi astronaut floating in space, pixar style",
-  "Minimalist product photo of a glass perfume bottle",
+  "一只戴墨镜的柴犬坐在海边的躺椅上喝椰子水，夕阳光，电影感",
+  "国风水墨画风格的少女撑伞站在江南雨巷，烟雨朦胧",
+  "极简风格的白色陶瓷咖啡杯产品图，柔光，浅灰背景",
+  "赛博朋克城市夜景，霓虹灯倒影在湿润的街道，俯视广角",
+  "可爱 3D 卡通风格的橘猫宇航员漂浮在太空，皮克斯风",
+  "复古港风电影海报，胶片颗粒，1990 年代香港街头",
 ];
 
 export default function GenerateForm({
@@ -100,7 +102,7 @@ export default function GenerateForm({
                 onClick={() => setPrompt(s)}
                 className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] text-white/60 transition hover:border-accent/40 hover:text-white"
               >
-                {s.length > 28 ? s.slice(0, 28) + "…" : s}
+                {s.length > 18 ? s.slice(0, 18) + "…" : s}
               </button>
             ))}
           </div>

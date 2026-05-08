@@ -15,7 +15,7 @@ export default function ResultGrid({ images, loading, loadingCount = 1 }: Props)
     );
   }
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+    <div className="grid w-full grid-cols-[repeat(auto-fit,minmax(260px,480px))] justify-center gap-4">
       {loading &&
         Array.from({ length: Math.max(1, loadingCount) }).map((_, i) => (
           <div
