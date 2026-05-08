@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { HistoryItem, genId, normalizeImages } from "@/lib/history";
+import PromptEditor from "./PromptEditor";
 
 type Props = {
   models: string[];
   sizes: string[];
+  enhanceModels: string[];
   initialPrompt: string;
   loading: boolean;
   setLoading: (b: boolean) => void;
@@ -24,6 +26,7 @@ const SUGGESTIONS = [
 export default function GenerateForm({
   models,
   sizes,
+  enhanceModels,
   initialPrompt,
   loading,
   setLoading,
@@ -81,19 +84,13 @@ export default function GenerateForm({
   return (
     <div className="card space-y-4 p-4">
       <div>
-        <div className="mb-1.5 flex items-center justify-between">
-          <label className="label !mb-0">Prompt</label>
-          <span className="text-[11px] text-white/30">{prompt.length} 字</span>
-        </div>
-        <textarea
-          className="input min-h-[140px] resize-y leading-relaxed"
+        <PromptEditor
           value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          onCompositionEnd={(e) => setPrompt((e.target as HTMLTextAreaElement).value)}
-          onKeyDown={(e) => {
-            if ((e.metaKey || e.ctrlKey) && e.key === "Enter") submit();
-          }}
-          placeholder="描述你想要的画面，越具体越好…  (⌘/Ctrl + Enter 提交)"
+          onChange={setPrompt}
+          onSubmit={submit}
+          enhanceModels={enhanceModels}
+          setError={setError}
+          placeholder="描述你想要的画面，中英文均可，点 ✨ 可一键扩写成详细英文 Prompt  (⌘/Ctrl + Enter 提交)"
         />
         {!prompt && (
           <div className="mt-2 flex flex-wrap gap-1.5">

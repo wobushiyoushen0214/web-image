@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { HistoryItem, genId, normalizeImages } from "@/lib/history";
+import PromptEditor from "./PromptEditor";
 
 type Props = {
   models: string[];
   sizes: string[];
+  enhanceModels: string[];
   initialPrompt: string;
   loading: boolean;
   setLoading: (b: boolean) => void;
@@ -17,6 +19,7 @@ type Props = {
 export default function EditForm({
   models,
   sizes,
+  enhanceModels,
   initialPrompt,
   loading,
   setLoading,
@@ -119,22 +122,15 @@ export default function EditForm({
         </label>
       </div>
 
-      <div>
-        <div className="mb-1.5 flex items-center justify-between">
-          <label className="label !mb-0">Prompt</label>
-          <span className="text-[11px] text-white/30">{prompt.length} 字</span>
-        </div>
-        <textarea
-          className="input min-h-[100px] resize-y leading-relaxed"
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          onCompositionEnd={(e) => setPrompt((e.target as HTMLTextAreaElement).value)}
-          onKeyDown={(e) => {
-            if ((e.metaKey || e.ctrlKey) && e.key === "Enter") submit();
-          }}
-          placeholder="描述要如何修改这张图…  (⌘/Ctrl + Enter 提交)"
-        />
-      </div>
+      <PromptEditor
+        value={prompt}
+        onChange={setPrompt}
+        onSubmit={submit}
+        enhanceModels={enhanceModels}
+        setError={setError}
+        minHeight="min-h-[100px]"
+        placeholder="描述要如何修改这张图，中英文均可，点 ✨ 可一键扩写  (⌘/Ctrl + Enter 提交)"
+      />
 
       <div className="grid grid-cols-2 gap-3">
         <div>

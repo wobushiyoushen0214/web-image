@@ -13,6 +13,10 @@ export default function Page() {
   const [tab, setTab] = useState<Tab>("generate");
   const [models, setModels] = useState<string[]>(["gpt-image-2"]);
   const [sizes, setSizes] = useState<string[]>(["1024x1024", "1024x1536", "1536x1024", "auto"]);
+  const [enhanceModels, setEnhanceModels] = useState<string[]>([
+    "moonshotai/kimi-k2.5",
+    "minimaxai/minimax-m2.7",
+  ]);
   const [images, setImages] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingCount, setLoadingCount] = useState(1);
@@ -26,6 +30,7 @@ export default function Page() {
       .then((d) => {
         if (Array.isArray(d.models) && d.models.length) setModels(d.models);
         if (Array.isArray(d.sizes) && d.sizes.length) setSizes(d.sizes);
+        if (Array.isArray(d.enhanceModels) && d.enhanceModels.length) setEnhanceModels(d.enhanceModels);
       })
       .catch(() => {});
     setHistory(loadHistory());
@@ -93,6 +98,7 @@ export default function Page() {
             <GenerateForm
               models={models}
               sizes={sizes}
+              enhanceModels={enhanceModels}
               initialPrompt={activePrompt}
               loading={loading}
               setLoading={setLoading}
@@ -104,6 +110,7 @@ export default function Page() {
             <EditForm
               models={models}
               sizes={sizes}
+              enhanceModels={enhanceModels}
               initialPrompt={activePrompt}
               loading={loading}
               setLoading={setLoading}
