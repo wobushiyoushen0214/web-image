@@ -14,8 +14,8 @@ export default function Page() {
   const [models, setModels] = useState<string[]>(["gpt-image-2"]);
   const [sizes, setSizes] = useState<string[]>(["1024x1024", "1024x1536", "1536x1024", "auto"]);
   const [enhanceModels, setEnhanceModels] = useState<string[]>([
-    "moonshotai/kimi-k2.5",
-    "minimaxai/minimax-m2.7",
+    "z-ai/glm5",
+    "moonshotai/kimi-k2-thinking",
   ]);
   const [images, setImages] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);

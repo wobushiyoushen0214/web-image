@@ -9,7 +9,7 @@ export const MODELS = (process.env.RELAY_MODELS ?? "gpt-image-2")
   .map((s) => s.trim())
   .filter(Boolean);
 
-export const ENHANCE_MODELS = (process.env.ENHANCE_MODELS ?? "moonshotai/kimi-k2.5,minimaxai/minimax-m2.7")
+export const ENHANCE_MODELS = (process.env.ENHANCE_MODELS ?? "z-ai/glm5,moonshotai/kimi-k2-thinking")
   .split(",")
   .map((s) => s.trim())
   .filter(Boolean);

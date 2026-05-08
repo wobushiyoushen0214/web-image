@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type Props = {
   value: string;
@@ -25,6 +25,12 @@ export default function PromptEditor({
   const [model, setModel] = useState(enhanceModels[0] ?? "");
   const [showModelMenu, setShowModelMenu] = useState(false);
   const [lang, setLang] = useState<"en" | "zh">("en");
+
+  useEffect(() => {
+    if (enhanceModels.length && !enhanceModels.includes(model)) {
+      setModel(enhanceModels[0]);
+    }
+  }, [enhanceModels, model]);
 
   const enhance = async () => {
     if (!value.trim() || enhancing) return;
