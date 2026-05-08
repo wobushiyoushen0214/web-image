@@ -62,7 +62,13 @@ export default function GenerateForm({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt: finalPrompt, model, size, n }),
       });
-      const data = await res.json();
+      const raw = await res.text();
+      let data: any;
+      try {
+        data = JSON.parse(raw);
+      } catch {
+        throw new Error(`HTTP ${res.status}：${raw.slice(0, 300)}`);
+      }
       if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
       console.log("[generate] response:", data);
       const images = normalizeImages(data);

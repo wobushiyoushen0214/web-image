@@ -3,7 +3,7 @@ import { RELAY_BASE_URL, RELAY_API_KEY } from "@/lib/config";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 export async function POST(req: NextRequest) {
   const ip = getClientIp(req.headers);
@@ -40,13 +40,31 @@ export async function POST(req: NextRequest) {
       Authorization: `Bearer ${RELAY_API_KEY}`,
     },
     body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(270_000),
+  }).catch((e: Error) => {
+    return new Response(
+      JSON.stringify({ error: e.name === "TimeoutError" ? "上游生图超时（>270s）" : `上游请求失败：${e.message}` }),
+      { status: 504, headers: { "Content-Type": "application/json" } },
+    );
   });
 
   const text = await upstream.text();
+  const ct = upstream.headers.get("Content-Type") ?? "";
+  if (!ct.includes("application/json")) {
+    return NextResponse.json(
+      {
+        error: `上游返回非 JSON (HTTP ${upstream.status})：${text.slice(0, 300)}`,
+      },
+      {
+        status: upstream.ok ? 502 : upstream.status,
+        headers: { "X-RateLimit-Remaining": String(rl.remaining) },
+      },
+    );
+  }
   return new NextResponse(text, {
     status: upstream.status,
     headers: {
-      "Content-Type": upstream.headers.get("Content-Type") ?? "application/json",
+      "Content-Type": "application/json",
       "X-RateLimit-Remaining": String(rl.remaining),
     },
   });
