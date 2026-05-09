@@ -21,6 +21,20 @@ const SYSTEM_PROMPT_ZH = `你是一名资深的文生图 Prompt 工程师。
 - 硬性限制：50-100 字，一段文字。短语之间用逗号分隔即可。绝对不要超过 100 字。
 - 不要凭空添加用户没要求的文字内容；不要加水印或署名。`;
 
+const REFINE_SYSTEM_EN = `You are a senior prompt engineer. The user already has a prompt and wants to refine it with a specific instruction.
+Rewrite the original prompt applying the user's refinement instruction. Keep the original subject and core intent.
+Rules:
+- Output only the final English prompt. No quotes, explanations, or preamble.
+- HARD LIMIT: 30-60 words. One paragraph.
+- Apply the refinement faithfully but do not lose the original subject.`;
+
+const REFINE_SYSTEM_ZH = `你是一名资深的 Prompt 工程师。用户已有一段 Prompt，并希望按一条具体指令对其细化。
+请基于用户提供的细化指令改写原 Prompt，保留原始主体和核心意图。
+规则：
+- 只输出最终的中文 Prompt。不要引号、解释、前后缀。
+- 硬性限制：50-100 字，一段文字。
+- 忠实应用细化要求，但不要丢失原始主体。`;
+
 const MAX_OUTPUT_CHARS = 600;
 const MAX_INPUT_CHARS = 500;
 
@@ -52,7 +66,17 @@ export async function POST(req: NextRequest) {
       ? body.model
       : ENHANCE_MODELS[0];
   const lang = body.lang === "zh" ? "zh" : "en";
-  const systemPrompt = lang === "zh" ? SYSTEM_PROMPT_ZH : SYSTEM_PROMPT_EN;
+  const mode = body.mode === "refine" ? "refine" : "enhance";
+  const instruction = typeof body.instruction === "string" ? body.instruction.trim().slice(0, 200) : "";
+
+  const systemPrompt =
+    mode === "refine"
+      ? lang === "zh"
+        ? REFINE_SYSTEM_ZH
+        : REFINE_SYSTEM_EN
+      : lang === "zh"
+      ? SYSTEM_PROMPT_ZH
+      : SYSTEM_PROMPT_EN;
 
   const skills = Array.isArray(body.skills)
     ? body.skills.filter((s: unknown): s is string => typeof s === "string" && s.trim().length > 0)
@@ -62,11 +86,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "启用的 Skills 总长度过大（>20000 字）" }, { status: 400 });
   }
 
+  const userBlock =
+    mode === "refine"
+      ? `Original prompt:\n${body.prompt}\n\nRefinement instruction:\n${instruction || "(none)"}`
+      : body.prompt;
   const userMessage = skills.length
-    ? `${skills.join("\n\n---\n\n")}\n\n---\n\nUser input:\n${body.prompt}`
-    : body.prompt;
+    ? `${skills.join("\n\n---\n\n")}\n\n---\n\n${
+        mode === "refine" ? userBlock : `User input:\n${body.prompt}`
+      }`
+    : userBlock;
 
-  console.log(`[enhance] model=${model} lang=${lang} skills=${skills.length} userLen=${userMessage.length}`);
+  console.log(`[enhance] mode=${mode} model=${model} lang=${lang} skills=${skills.length} userLen=${userMessage.length}`);
 
   const upstream = await fetch(`${ENHANCE_BASE_URL}/chat/completions`, {
     method: "POST",

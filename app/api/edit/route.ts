@@ -39,11 +39,27 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "image file is required" }, { status: 400 });
   }
 
+  let userSeed: number | null = null;
+  const seedRaw = inForm.get("seed");
+  if (typeof seedRaw === "string" && seedRaw.trim()) {
+    const s = Number(seedRaw);
+    if (Number.isFinite(s)) userSeed = Math.floor(s);
+  }
+  const responseSeed = userSeed ?? Math.floor(Math.random() * 2_147_483_647);
+
+  const negative = typeof inForm.get("negative_prompt") === "string"
+    ? String(inForm.get("negative_prompt")).trim()
+    : "";
+  const finalPrompt = negative
+    ? `${prompt}\n\nNegative prompt (avoid these): ${negative}`
+    : prompt;
+
   const outForm = new FormData();
   outForm.append("model", String(inForm.get("model") ?? "gpt-image-2"));
-  outForm.append("prompt", prompt);
+  outForm.append("prompt", finalPrompt);
   outForm.append("n", String(inForm.get("n") ?? "1"));
   outForm.append("size", String(inForm.get("size") ?? "1024x1024"));
+  if (userSeed !== null) outForm.append("seed", String(userSeed));
   outForm.append("image", image, image.name || "image.png");
   const mask = inForm.get("mask");
   if (mask instanceof File) outForm.append("mask", mask, mask.name || "mask.png");
@@ -73,7 +89,23 @@ export async function POST(req: NextRequest) {
       },
     );
   }
-  return new NextResponse(text, {
+
+  let body2: any;
+  try {
+    body2 = JSON.parse(text);
+  } catch {
+    return new NextResponse(text, {
+      status: upstream.status,
+      headers: {
+        "Content-Type": "application/json",
+        "X-RateLimit-Remaining": String(rl.remaining),
+      },
+    });
+  }
+  if (upstream.ok && body2 && typeof body2 === "object" && body2.seed === undefined) {
+    body2.seed = responseSeed;
+  }
+  return new NextResponse(JSON.stringify(body2), {
     status: upstream.status,
     headers: {
       "Content-Type": "application/json",

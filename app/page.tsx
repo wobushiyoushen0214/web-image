@@ -1,15 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import GenerateForm from "@/components/GenerateForm";
 import EditForm from "@/components/EditForm";
 import ResultGrid from "@/components/ResultGrid";
 import HistoryPanel from "@/components/HistoryPanel";
 import SkillsDrawer from "@/components/SkillsDrawer";
-import { HistoryItem, loadHistory, saveHistoryItem } from "@/lib/history";
+import BatchPanel, { type BatchTask } from "@/components/BatchPanel";
+import BatchResultMatrix from "@/components/BatchResultMatrix";
+import StoryboardPanel, { type StoryboardConfig, type StoryboardScene } from "@/components/StoryboardPanel";
+import StoryboardResult from "@/components/StoryboardResult";
+import { HistoryItem, loadHistory, saveHistoryItem, normalizeImages, toggleStar } from "@/lib/history";
 import { Skill, loadSkills } from "@/lib/skills";
 
-type Tab = "generate" | "edit";
+type Tab = "generate" | "edit" | "batch" | "storyboard";
 
 export default function Page() {
   const [tab, setTab] = useState<Tab>("generate");
@@ -20,13 +24,27 @@ export default function Page() {
     "moonshotai/kimi-k2-thinking",
   ]);
   const [images, setImages] = useState<string[]>([]);
+  const [currentItem, setCurrentItem] = useState<HistoryItem | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingCount, setLoadingCount] = useState(1);
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [activePrompt, setActivePrompt] = useState("");
+  const [activeNegative, setActiveNegative] = useState("");
+  const [activeSeed, setActiveSeed] = useState<number | null>(null);
   const [skills, setSkills] = useState<Skill[]>([]);
   const [skillsOpen, setSkillsOpen] = useState(false);
+
+  const [batchTasks, setBatchTasks] = useState<BatchTask[]>([]);
+  const [batchSizes, setBatchSizes] = useState<string[]>([]);
+  const [batchSkillRows, setBatchSkillRows] = useState<{ id: string | null; name: string }[]>([]);
+  const [batchRunning, setBatchRunning] = useState(false);
+  const batchAbortRef = useRef(false);
+
+  const [storyboardScenes, setStoryboardScenes] = useState<StoryboardScene[]>([]);
+  const [storyboardSeed, setStoryboardSeed] = useState<number | null>(null);
+  const [storyboardRunning, setStoryboardRunning] = useState(false);
+  const storyboardAbortRef = useRef(false);
 
   useEffect(() => {
     fetch("/api/config")
@@ -43,13 +61,221 @@ export default function Page() {
 
   const onResult = (item: HistoryItem) => {
     setImages(item.images);
+    setCurrentItem(item);
     setHistory(saveHistoryItem(item));
   };
 
   const onPickHistory = (item: HistoryItem) => {
     setTab(item.mode);
     setImages(item.images);
+    setCurrentItem(item);
     setActivePrompt(item.prompt);
+    setActiveNegative(item.negative ?? "");
+    setActiveSeed(item.seed ?? null);
+  };
+
+  const onTweak = () => {
+    if (!currentItem) return;
+    setActivePrompt(currentItem.prompt);
+    setActiveNegative(currentItem.negative ?? "");
+    setActiveSeed(currentItem.seed ?? null);
+  };
+
+  const onToggleCurrentStar = () => {
+    if (!currentItem) return;
+    const next = toggleStar(currentItem.id);
+    setHistory(next);
+    const updated = next.find((x) => x.id === currentItem.id);
+    if (updated) setCurrentItem(updated);
+  };
+
+  const runBatch = async (tasks: BatchTask[], model: string) => {
+    const uniqSizes = Array.from(new Set(tasks.map((t) => t.size)));
+    const seenRow = new Set<string>();
+    const rows: { id: string | null; name: string }[] = [];
+    for (const t of tasks) {
+      const key = t.skillId ?? "none";
+      if (seenRow.has(key)) continue;
+      seenRow.add(key);
+      rows.push({ id: t.skillId, name: t.skillName });
+    }
+    setBatchSizes(uniqSizes);
+    setBatchSkillRows(rows);
+    setBatchTasks(tasks);
+    setBatchRunning(true);
+    batchAbortRef.current = false;
+    setError(null);
+
+    const CONCURRENCY = 2;
+    const queue = [...tasks];
+    const runOne = async (t: BatchTask) => {
+      setBatchTasks((cur) => cur.map((x) => (x.id === t.id ? { ...x, status: "loading" } : x)));
+      try {
+        const res = await fetch("/api/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt: t.prompt, model, size: t.size, n: 1 }),
+        });
+        const raw = await res.text();
+        let data: any;
+        try {
+          data = JSON.parse(raw);
+        } catch {
+          throw new Error(`HTTP ${res.status}：${raw.slice(0, 200)}`);
+        }
+        if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
+        const imgs = normalizeImages(data);
+        if (!imgs.length) throw new Error("无返回图");
+        const seed = typeof data?.seed === "number" ? data.seed : undefined;
+        setBatchTasks((cur) =>
+          cur.map((x) =>
+            x.id === t.id ? { ...x, status: "done", image: imgs[0], seed } : x,
+          ),
+        );
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        setBatchTasks((cur) =>
+          cur.map((x) => (x.id === t.id ? { ...x, status: "error", error: msg } : x)),
+        );
+      }
+    };
+
+    const workers = Array.from({ length: CONCURRENCY }).map(async () => {
+      while (queue.length > 0) {
+        if (batchAbortRef.current) break;
+        const t = queue.shift();
+        if (!t) break;
+        await runOne(t);
+      }
+    });
+    await Promise.all(workers);
+    setBatchRunning(false);
+  };
+
+  const onPickBatchSeed = (t: BatchTask) => {
+    if (t.seed == null || !t.image) return;
+    setTab("generate");
+    setActivePrompt(t.prompt);
+    setActiveSeed(t.seed);
+    setImages([t.image]);
+    setCurrentItem({
+      id: `batch-${t.id}`,
+      mode: "generate",
+      prompt: t.prompt,
+      model: "",
+      size: t.size,
+      images: [t.image],
+      createdAt: Date.now(),
+      seed: t.seed,
+    });
+  };
+
+  const composeStoryboardPrompt = (cfg: StoryboardConfig, sceneText: string, skill: Skill | null) => {
+    const parts: string[] = [];
+    if (cfg.characterDesc) parts.push(`Character: ${cfg.characterDesc}`);
+    parts.push(`Scene: ${sceneText}`);
+    if (cfg.styleDesc) parts.push(`Style: ${cfg.styleDesc}`);
+    const base = parts.join(". ");
+    if (!skill) return base;
+    return `${skill.content.trim()}\n\n---\n\nUser input:\n${base}`;
+  };
+
+  const runStoryboard = async (cfg: StoryboardConfig) => {
+    const initial: StoryboardScene[] = cfg.scenes.map((s) => ({
+      id: s.id,
+      text: s.text,
+      status: "pending",
+    }));
+    setStoryboardScenes(initial);
+    setStoryboardSeed(cfg.sharedSeed);
+    setStoryboardRunning(true);
+    storyboardAbortRef.current = false;
+    setError(null);
+
+    const skill = cfg.skillId ? skills.find((s) => s.id === cfg.skillId) ?? null : null;
+    const useImg2Img = !!cfg.referenceFile;
+
+    for (const sc of cfg.scenes) {
+      if (storyboardAbortRef.current) break;
+      setStoryboardScenes((cur) =>
+        cur.map((x) => (x.id === sc.id ? { ...x, status: "loading" } : x)),
+      );
+      const prompt = composeStoryboardPrompt(cfg, sc.text, skill);
+      try {
+        let data: any;
+        if (useImg2Img && cfg.referenceFile) {
+          const fd = new FormData();
+          fd.append("prompt", prompt);
+          fd.append("model", cfg.model);
+          fd.append("size", cfg.size);
+          fd.append("n", "1");
+          fd.append("image", cfg.referenceFile);
+          if (cfg.negative) fd.append("negative_prompt", cfg.negative);
+          if (cfg.sharedSeed != null) fd.append("seed", String(cfg.sharedSeed));
+          const res = await fetch("/api/edit", { method: "POST", body: fd });
+          const raw = await res.text();
+          try {
+            data = JSON.parse(raw);
+          } catch {
+            throw new Error(`HTTP ${res.status}：${raw.slice(0, 200)}`);
+          }
+          if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
+        } else {
+          const body: Record<string, unknown> = {
+            prompt,
+            model: cfg.model,
+            size: cfg.size,
+            n: 1,
+          };
+          if (cfg.sharedSeed != null) body.seed = cfg.sharedSeed;
+          if (cfg.negative) body.negative_prompt = cfg.negative;
+          const res = await fetch("/api/generate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          });
+          const raw = await res.text();
+          try {
+            data = JSON.parse(raw);
+          } catch {
+            throw new Error(`HTTP ${res.status}：${raw.slice(0, 200)}`);
+          }
+          if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
+        }
+        const imgs = normalizeImages(data);
+        if (!imgs.length) throw new Error("无返回图");
+        const seed = typeof data?.seed === "number" ? data.seed : undefined;
+        setStoryboardScenes((cur) =>
+          cur.map((x) =>
+            x.id === sc.id ? { ...x, status: "done", image: imgs[0], seed, prompt } : x,
+          ),
+        );
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        setStoryboardScenes((cur) =>
+          cur.map((x) => (x.id === sc.id ? { ...x, status: "error", error: msg, prompt } : x)),
+        );
+      }
+    }
+    setStoryboardRunning(false);
+  };
+
+  const onPickStoryboardScene = (s: StoryboardScene) => {
+    if (s.seed == null || !s.image) return;
+    setTab("generate");
+    setActivePrompt(s.prompt ?? s.text);
+    setActiveSeed(s.seed);
+    setImages([s.image]);
+    setCurrentItem({
+      id: `story-${s.id}`,
+      mode: "generate",
+      prompt: s.prompt ?? s.text,
+      model: "",
+      size: "",
+      images: [s.image],
+      createdAt: Date.now(),
+      seed: s.seed,
+    });
   };
 
   return (
@@ -80,7 +306,7 @@ export default function Page() {
         <aside className="space-y-4">
           <div className="card flex p-1">
             <button
-              className={`flex-1 rounded-xl px-4 py-2 text-sm font-medium transition ${
+              className={`flex-1 whitespace-nowrap rounded-xl px-2 py-2 text-[13px] font-medium transition ${
                 tab === "generate"
                   ? "bg-white/10 text-white shadow-inner"
                   : "text-white/50 hover:text-white"
@@ -90,7 +316,7 @@ export default function Page() {
               文生图
             </button>
             <button
-              className={`flex-1 rounded-xl px-4 py-2 text-sm font-medium transition ${
+              className={`flex-1 whitespace-nowrap rounded-xl px-2 py-2 text-[13px] font-medium transition ${
                 tab === "edit"
                   ? "bg-white/10 text-white shadow-inner"
                   : "text-white/50 hover:text-white"
@@ -99,9 +325,29 @@ export default function Page() {
             >
               图生图
             </button>
+            <button
+              className={`flex-1 whitespace-nowrap rounded-xl px-2 py-2 text-[13px] font-medium transition ${
+                tab === "batch"
+                  ? "bg-white/10 text-white shadow-inner"
+                  : "text-white/50 hover:text-white"
+              }`}
+              onClick={() => setTab("batch")}
+            >
+              📊 批量
+            </button>
+            <button
+              className={`flex-1 whitespace-nowrap rounded-xl px-2 py-2 text-[13px] font-medium transition ${
+                tab === "storyboard"
+                  ? "bg-white/10 text-white shadow-inner"
+                  : "text-white/50 hover:text-white"
+              }`}
+              onClick={() => setTab("storyboard")}
+            >
+              🎬 故事板
+            </button>
           </div>
 
-          {tab === "generate" ? (
+          {tab === "generate" && (
             <GenerateForm
               models={models}
               sizes={sizes}
@@ -109,13 +355,16 @@ export default function Page() {
               skills={skills}
               onOpenSkills={() => setSkillsOpen(true)}
               initialPrompt={activePrompt}
+              initialNegative={activeNegative}
+              initialSeed={activeSeed}
               loading={loading}
               setLoading={setLoading}
               setLoadingCount={setLoadingCount}
               setError={setError}
               onResult={onResult}
             />
-          ) : (
+          )}
+          {tab === "edit" && (
             <EditForm
               models={models}
               sizes={sizes}
@@ -123,11 +372,36 @@ export default function Page() {
               skills={skills}
               onOpenSkills={() => setSkillsOpen(true)}
               initialPrompt={activePrompt}
+              initialNegative={activeNegative}
+              initialSeed={activeSeed}
               loading={loading}
               setLoading={setLoading}
               setLoadingCount={setLoadingCount}
               setError={setError}
               onResult={onResult}
+            />
+          )}
+          {tab === "batch" && (
+            <BatchPanel
+              skills={skills}
+              models={models}
+              sizes={sizes}
+              enhanceModels={enhanceModels}
+              onOpenSkills={() => setSkillsOpen(true)}
+              setError={setError}
+              onStart={runBatch}
+              running={batchRunning}
+            />
+          )}
+          {tab === "storyboard" && (
+            <StoryboardPanel
+              skills={skills}
+              models={models}
+              sizes={sizes}
+              onOpenSkills={() => setSkillsOpen(true)}
+              setError={setError}
+              onStart={runStoryboard}
+              running={storyboardRunning}
             />
           )}
         </aside>
@@ -139,7 +413,40 @@ export default function Page() {
               <div className="mt-1 text-red-200/80">{error}</div>
             </div>
           )}
-          <ResultGrid images={images} loading={loading} loadingCount={loadingCount} />
+          {tab === "batch" ? (
+            <BatchResultMatrix
+              tasks={batchTasks}
+              sizes={batchSizes}
+              skillRows={batchSkillRows}
+              onPickSeed={onPickBatchSeed}
+            />
+          ) : tab === "storyboard" ? (
+            <StoryboardResult
+              scenes={storyboardScenes}
+              sharedSeed={storyboardSeed}
+              onPickScene={onPickStoryboardScene}
+            />
+          ) : (
+            <ResultGrid
+              images={images}
+              loading={loading}
+              loadingCount={loadingCount}
+              seed={currentItem?.seed ?? null}
+              prompt={currentItem?.prompt}
+              starred={currentItem?.starred ?? false}
+              onTweak={onTweak}
+              onToggleStar={currentItem ? onToggleCurrentStar : undefined}
+              onPostProcessed={(next) => {
+                setImages(next);
+                if (currentItem) {
+                  const updated = { ...currentItem, images: next };
+                  setCurrentItem(updated);
+                  setHistory(saveHistoryItem(updated));
+                }
+              }}
+              setError={setError}
+            />
+          )}
           <HistoryPanel items={history} onPick={onPickHistory} onChange={setHistory} />
         </section>
       </div>

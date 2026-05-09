@@ -14,5 +14,7 @@ export const ENHANCE_MODELS = (process.env.ENHANCE_MODELS ?? "z-ai/glm5,moonshot
   .map((s) => s.trim())
   .filter(Boolean);
 
+export const DESCRIBE_MODEL = process.env.DESCRIBE_MODEL ?? "z-ai/glm-4.5v";
+
 export const SIZES = ["1024x1024", "1024x1536", "1536x1024", "auto"] as const;
 export type Size = (typeof SIZES)[number];

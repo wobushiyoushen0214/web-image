@@ -48,6 +48,15 @@ body {
   .input {
     @apply w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2.5 text-sm text-white placeholder:text-white/30 outline-none transition focus:border-accent/60 focus:bg-white/[0.07] focus:ring-2 focus:ring-accent/20;
   }
+  select.input {
+    @apply appearance-none bg-no-repeat pr-8;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'><path d='M2 4l4 4 4-4' stroke='rgba(255,255,255,0.5)' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+    background-position: right 0.75rem center;
+  }
+  select.input option {
+    background: #15171c;
+    color: #ececf1;
+  }
   .label {
     @apply mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-white/40;
   }

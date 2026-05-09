@@ -5,6 +5,9 @@ import { HistoryItem, genId, normalizeImages } from "@/lib/history";
 import type { Skill } from "@/lib/skills";
 import { composePrompt } from "@/lib/skills";
 import PromptEditor from "./PromptEditor";
+import AdvancedControls from "./AdvancedControls";
+import SnippetsDrawer from "./SnippetsDrawer";
+import RefinePopover from "./RefinePopover";
 
 type Props = {
   models: string[];
@@ -13,6 +16,8 @@ type Props = {
   skills: Skill[];
   onOpenSkills: () => void;
   initialPrompt: string;
+  initialNegative?: string;
+  initialSeed?: number | null;
   loading: boolean;
   setLoading: (b: boolean) => void;
   setLoadingCount: (n: number) => void;
@@ -36,6 +41,8 @@ export default function GenerateForm({
   skills,
   onOpenSkills,
   initialPrompt,
+  initialNegative = "",
+  initialSeed = null,
   loading,
   setLoading,
   setLoadingCount,
@@ -46,8 +53,27 @@ export default function GenerateForm({
   const [model, setModel] = useState(models[0]);
   const [size, setSize] = useState("1024x1024");
   const [n, setN] = useState(1);
+  const [negative, setNegative] = useState(initialNegative);
+  const [seed, setSeed] = useState<string>(initialSeed != null ? String(initialSeed) : "");
+  const [seedLocked, setSeedLocked] = useState(initialSeed != null);
+  const [snippetsOpen, setSnippetsOpen] = useState(false);
+
+  const appendSnippet = (text: string) => {
+    setPrompt((cur) => {
+      const trimmed = cur.trim();
+      if (!trimmed) return text;
+      return /[,，;；.。]$/.test(trimmed) ? `${trimmed} ${text}` : `${trimmed}, ${text}`;
+    });
+  };
 
   useEffect(() => setPrompt(initialPrompt), [initialPrompt]);
+  useEffect(() => setNegative(initialNegative), [initialNegative]);
+  useEffect(() => {
+    if (initialSeed != null) {
+      setSeed(String(initialSeed));
+      setSeedLocked(true);
+    }
+  }, [initialSeed]);
   useEffect(() => {
     if (!models.includes(model)) setModel(models[0]);
   }, [models, model]);
@@ -66,7 +92,14 @@ export default function GenerateForm({
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: finalPrompt, model, size, n }),
+        body: JSON.stringify({
+          prompt: finalPrompt,
+          model,
+          size,
+          n,
+          negative_prompt: negative.trim() || undefined,
+          seed: seedLocked && seed ? Number(seed) : undefined,
+        }),
       });
       const raw = await res.text();
       let data: any;
@@ -79,6 +112,8 @@ export default function GenerateForm({
       console.log("[generate] response:", data);
       const images = normalizeImages(data);
       if (!images.length) throw new Error(`无返回图片，原始响应：${JSON.stringify(data).slice(0, 200)}`);
+      const returnedSeed = typeof data?.seed === "number" ? data.seed : undefined;
+      if (returnedSeed != null && !seedLocked) setSeed(String(returnedSeed));
       onResult({
         id: genId(),
         mode: "generate",
@@ -87,6 +122,8 @@ export default function GenerateForm({
         size,
         images,
         createdAt: Date.now(),
+        seed: returnedSeed,
+        negative: negative.trim() || undefined,
       });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -97,7 +134,29 @@ export default function GenerateForm({
 
   return (
     <div className="card space-y-4 p-4">
+      <SnippetsDrawer
+        open={snippetsOpen}
+        onClose={() => setSnippetsOpen(false)}
+        onAppend={appendSnippet}
+      />
       <div>
+        <div className="mb-1 flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => setSnippetsOpen(true)}
+            className="rounded-md bg-white/5 px-2.5 py-1 text-[11px] text-white/70 transition hover:bg-white/10 hover:text-white"
+            title="打开 Prompt 片段库（构图/光线/风格...）"
+          >
+            🧩 片段库
+          </button>
+          <RefinePopover
+            value={prompt}
+            onChange={setPrompt}
+            enhanceModels={enhanceModels}
+            skills={skills}
+            setError={setError}
+          />
+        </div>
         <PromptEditor
           value={prompt}
           onChange={setPrompt}
@@ -167,6 +226,15 @@ export default function GenerateForm({
           ))}
         </div>
       </div>
+
+      <AdvancedControls
+        negative={negative}
+        onNegativeChange={setNegative}
+        seed={seed}
+        onSeedChange={setSeed}
+        seedLocked={seedLocked}
+        onSeedLockedChange={setSeedLocked}
+      />
 
       <button className="btn btn-primary w-full py-3 text-base" disabled={loading} onClick={submit}>
         {loading ? (

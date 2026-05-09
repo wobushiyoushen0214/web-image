@@ -30,14 +30,27 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const negative = typeof body.negative_prompt === "string" ? body.negative_prompt.trim() : "";
+  const finalPrompt = negative
+    ? `${body.prompt}\n\nNegative prompt (avoid these): ${negative}`
+    : body.prompt;
+
+  let userSeed: number | null = null;
+  if (body.seed !== undefined && body.seed !== null && body.seed !== "") {
+    const s = Number(body.seed);
+    if (Number.isFinite(s)) userSeed = Math.floor(s);
+  }
+  const responseSeed = userSeed ?? Math.floor(Math.random() * 2_147_483_647);
+
   const payload: Record<string, unknown> = {
     model: body.model ?? "gpt-image-2",
-    prompt: body.prompt,
+    prompt: finalPrompt,
     n: Math.min(Math.max(Number(body.n ?? 1), 1), 4),
     size: body.size ?? "1024x1024",
   };
   if (body.quality) payload.quality = body.quality;
   if (body.background) payload.background = body.background;
+  if (userSeed !== null) payload.seed = userSeed;
 
   const upstream = await fetch(`${RELAY_BASE_URL}/images/generations`, {
     method: "POST",
@@ -67,7 +80,23 @@ export async function POST(req: NextRequest) {
       },
     );
   }
-  return new NextResponse(text, {
+
+  let body2: any;
+  try {
+    body2 = JSON.parse(text);
+  } catch {
+    return new NextResponse(text, {
+      status: upstream.status,
+      headers: {
+        "Content-Type": "application/json",
+        "X-RateLimit-Remaining": String(rl.remaining),
+      },
+    });
+  }
+  if (upstream.ok && body2 && typeof body2 === "object" && body2.seed === undefined) {
+    body2.seed = responseSeed;
+  }
+  return new NextResponse(JSON.stringify(body2), {
     status: upstream.status,
     headers: {
       "Content-Type": "application/json",
