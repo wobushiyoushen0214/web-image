@@ -2,7 +2,17 @@
   "permissions": {
     "allow": [
       "Bash(./node_modules/.bin/tsc --noEmit)",
-      "Bash(./node_modules/.bin/next build *)"
+      "Bash(./node_modules/.bin/next build *)",
+      "WebFetch(domain:github.com)",
+      "Bash(gh repo *)",
+      "Bash(curl -sL \"https://raw.githubusercontent.com/pbakaus/impeccable/main/README.md\")",
+      "Bash(curl -sL \"https://github.com/pbakaus/impeccable/archive/refs/heads/main.zip\" -o /tmp/impeccable.zip)",
+      "Read(//tmp/**)",
+      "Bash(unzip -q -o impeccable.zip)",
+      "Bash(npx impeccable@latest install)",
+      "Bash(mkdir -p \"f:/proj/web-image/.claude/skills/impeccable/reference\")",
+      "Bash(cp /tmp/impeccable-main/skill/SKILL.md \"f:/proj/web-image/.claude/skills/impeccable/SKILL.md\")",
+      "Bash(cp /tmp/impeccable-main/skill/reference/*.md \"f:/proj/web-image/.claude/skills/impeccable/reference/\")"
     ]
   }
 }

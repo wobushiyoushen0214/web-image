@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { RELAY_BASE_URL, RELAY_API_KEY } from "@/lib/config";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
+import { withNormalizedUpstreamError } from "@/lib/upstream-error";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -102,7 +103,13 @@ export async function POST(req: NextRequest) {
       },
     });
   }
-  if (upstream.ok && body2 && typeof body2 === "object" && body2.seed === undefined) {
+  if (!upstream.ok) {
+    return NextResponse.json(withNormalizedUpstreamError(body2, `HTTP ${upstream.status}`), {
+      status: upstream.status,
+      headers: { "X-RateLimit-Remaining": String(rl.remaining) },
+    });
+  }
+  if (body2 && typeof body2 === "object" && body2.seed === undefined) {
     body2.seed = responseSeed;
   }
   return new NextResponse(JSON.stringify(body2), {
