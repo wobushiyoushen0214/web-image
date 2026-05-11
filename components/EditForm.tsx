@@ -27,6 +27,7 @@ type Props = {
   setLoadingCount: (n: number) => void;
   setError: (s: string | null) => void;
   onResult: (item: HistoryItem) => void;
+  onSubmitPrompt?: (prompt: string) => void;
 };
 
 export default function EditForm({
@@ -45,6 +46,7 @@ export default function EditForm({
   setLoadingCount,
   setError,
   onResult,
+  onSubmitPrompt,
 }: Props) {
   const [prompt, setPrompt] = useState(initialPrompt);
   const [model, setModel] = useState(models[0]);
@@ -178,6 +180,7 @@ export default function EditForm({
     setLoadingCount(n);
     setLoading(true);
     setError(null);
+    onSubmitPrompt?.(finalPrompt);
     try {
       const fd = new FormData();
       fd.append("prompt", finalPrompt);

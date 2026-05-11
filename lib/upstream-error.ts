@@ -1,14 +1,16 @@
 const ERROR_MAP: Record<string, string> = {
   insufficient_quota: "上游额度不足，请联系管理员充值或更换 API Key",
-  rate_limit_exceeded: "上游请求过于频繁，请稍后再试",
+  rate_limit_exceeded: "上游请求过于频繁，请稍后再试（Rate limit exceeded）",
   invalid_api_key: "API Key 无效或已过期，请检查服务端配置",
   model_not_found: "所选模型不可用，请切换其他模型重试",
-  content_policy_violation: "内容审核未通过，请修改 Prompt 后重试",
+  content_policy_violation: "内容审核未通过 (content_policy_violation)，请修改 Prompt 后重试",
   invalid_request_error: "请求参数有误，请检查输入",
   server_error: "上游服务器内部错误，请稍后重试",
   timeout: "上游响应超时，请稍后重试",
   billing_hard_limit_reached: "上游账户已达消费上限，请联系管理员",
   account_deactivated: "上游账户已被停用",
+  safety_system: "内容审核未通过 (safety_system)，Prompt 可能包含敏感内容",
+  moderation: "内容审核未通过 (moderation)，请修改 Prompt",
 };
 
 function matchErrorCode(code: string | undefined, type: string | undefined): string | null {

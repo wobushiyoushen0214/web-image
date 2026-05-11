@@ -16,6 +16,7 @@ import TemplateDrawer from "@/components/TemplateDrawer";
 import QueuePanel, { type QueueItem } from "@/components/QueuePanel";
 import ShortcutsHelp, { useGlobalShortcuts } from "@/components/ShortcutsHelp";
 import ViewModeToggle, { type ViewMode } from "@/components/ViewModeToggle";
+import RetryPanel, { isContentPolicyError } from "@/components/RetryPanel";
 import { useToast } from "@/components/Toast";
 import { HistoryItem, loadHistory, saveHistoryItem, normalizeImages, toggleStar, genId } from "@/lib/history";
 import { Skill, loadSkills } from "@/lib/skills";
@@ -42,6 +43,7 @@ export default function Page() {
   const [activePrompt, setActivePrompt] = useState("");
   const [activeNegative, setActiveNegative] = useState("");
   const [activeSeed, setActiveSeed] = useState<number | null>(null);
+  const [lastSubmittedPrompt, setLastSubmittedPrompt] = useState("");
   const [skills, setSkills] = useState<Skill[]>([]);
   const [skillsOpen, setSkillsOpen] = useState(false);
 
@@ -526,6 +528,7 @@ export default function Page() {
               setLoadingCount={setLoadingCount}
               setError={setError}
               onResult={onResult}
+              onSubmitPrompt={setLastSubmittedPrompt}
             />
           )}
           {tab === "edit" && (
@@ -545,6 +548,7 @@ export default function Page() {
               setLoadingCount={setLoadingCount}
               setError={setError}
               onResult={onResult}
+              onSubmitPrompt={setLastSubmittedPrompt}
             />
           )}
           {tab === "batch" && (
@@ -574,10 +578,50 @@ export default function Page() {
 
         <section className="space-y-6">
           {error && (
-            <div className="animate-fade-in rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">
-              <div className="font-medium">出错了</div>
-              <div className="mt-1 text-red-200/80">{error}</div>
-            </div>
+            isContentPolicyError(error) && lastSubmittedPrompt ? (
+              <RetryPanel
+                error={error}
+                originalPrompt={lastSubmittedPrompt}
+                enhanceModels={enhanceModels}
+                onRewrite={(newPrompt) => {
+                  setActivePrompt(newPrompt);
+                  setError(null);
+                  toast("已填入改写后的 Prompt，点击生成按钮重试", "info");
+                }}
+                onDismiss={() => setError(null)}
+              />
+            ) : (
+              <div className="animate-fade-in rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="font-medium">出错了</div>
+                    <div className="mt-1 text-red-200/80">{error}</div>
+                    {error.toLowerCase().includes("rate limit") && (
+                      <div className="mt-2 text-[11px] text-red-200/60">
+                        请求过于频繁，请等待一段时间后重试。
+                      </div>
+                    )}
+                    {(error.includes("超时") || error.includes("timeout")) && (
+                      <button
+                        onClick={() => {
+                          setError(null);
+                          toast("请重新点击生成按钮重试", "info");
+                        }}
+                        className="mt-2 rounded-md bg-red-500/20 px-2.5 py-1 text-[11px] text-red-200 transition hover:bg-red-500/30"
+                      >
+                        ↻ 关闭并重试
+                      </button>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setError(null)}
+                    className="rounded-md p-1 text-red-200/50 transition hover:text-red-200"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+            )
           )}
           <QueuePanel
             items={queue}
