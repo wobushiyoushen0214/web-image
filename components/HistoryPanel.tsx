@@ -7,11 +7,14 @@ type Props = {
   items: HistoryItem[];
   onPick: (item: HistoryItem) => void;
   onChange: (items: HistoryItem[]) => void;
+  onExportZip?: (items: HistoryItem[]) => void;
 };
 
-export default function HistoryPanel({ items, onPick, onChange }: Props) {
+export default function HistoryPanel({ items, onPick, onChange, onExportZip }: Props) {
   const [query, setQuery] = useState("");
   const [starredOnly, setStarredOnly] = useState(false);
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -30,6 +33,17 @@ export default function HistoryPanel({ items, onPick, onChange }: Props) {
   if (!items.length) return null;
 
   const starredCount = items.filter((x) => x.starred).length;
+
+  const toggleSelect = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectedItems = items.filter((x) => selected.has(x.id));
 
   return (
     <div>
@@ -54,6 +68,39 @@ export default function HistoryPanel({ items, onPick, onChange }: Props) {
         >
           ⭐ {starredCount}
         </button>
+        {onExportZip && (
+          <button
+            onClick={() => {
+              setSelecting((v) => {
+                if (v && selected.size > 0) {
+                  onExportZip(selectedItems);
+                  setSelected(new Set());
+                }
+                return !v;
+              });
+            }}
+            className={`rounded-md border px-2 py-1 text-[11px] transition ${
+              selecting
+                ? selected.size > 0
+                  ? "border-emerald-500/60 bg-emerald-500/15 text-emerald-200"
+                  : "border-accent/60 bg-accent/15 text-accent"
+                : "border-white/10 bg-white/5 text-white/60 hover:text-white"
+            }`}
+            title={selecting ? (selected.size > 0 ? "导出选中项" : "取消选择") : "选择并导出 ZIP"}
+          >
+            {selecting ? (selected.size > 0 ? `↓ 导出 ${selected.size} 项` : "取消选择") : "↓ 导出"}
+          </button>
+        )}
+        {selecting && (
+          <button
+            onClick={() => {
+              setSelected(new Set(filtered.map((x) => x.id)));
+            }}
+            className="text-[11px] text-white/40 hover:text-white"
+          >
+            全选
+          </button>
+        )}
         <button
           className="text-xs text-white/40 transition hover:text-red-400"
           onClick={() => {
@@ -74,7 +121,19 @@ export default function HistoryPanel({ items, onPick, onChange }: Props) {
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
           {filtered.map((it) => (
             <div key={it.id} className="card group relative overflow-hidden">
-              <button onClick={() => onPick(it)} className="block w-full text-left">
+              {selecting && (
+                <button
+                  onClick={() => toggleSelect(it.id)}
+                  className={`absolute left-1.5 top-1.5 z-10 flex h-5 w-5 items-center justify-center rounded border text-[10px] transition ${
+                    selected.has(it.id)
+                      ? "border-accent bg-accent text-white"
+                      : "border-white/40 bg-black/60 text-transparent hover:border-accent"
+                  }`}
+                >
+                  ✓
+                </button>
+              )}
+              <button onClick={() => !selecting && onPick(it)} className="block w-full text-left">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={it.images[0]}

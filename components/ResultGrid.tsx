@@ -12,6 +12,7 @@ type Props = {
   starred?: boolean;
   onTweak?: () => void;
   onToggleStar?: () => void;
+  onImageClick?: (index: number) => void;
   onPostProcessed?: (newImages: string[]) => void;
   setError?: (s: string | null) => void;
 };
@@ -27,6 +28,7 @@ export default function ResultGrid({
   starred,
   onTweak,
   onToggleStar,
+  onImageClick,
   onPostProcessed,
   setError,
 }: Props) {
@@ -147,7 +149,8 @@ export default function ResultGrid({
             return (
               <div key={i} className="card group relative animate-fade-in overflow-hidden">
                 <div
-                  className="aspect-square w-full"
+                  className={`aspect-square w-full ${onImageClick ? "cursor-pointer" : ""}`}
+                  onClick={() => onImageClick?.(i)}
                   style={{
                     backgroundImage:
                       "linear-gradient(45deg, rgba(255,255,255,0.04) 25%, transparent 25%), linear-gradient(-45deg, rgba(255,255,255,0.04) 25%, transparent 25%), linear-gradient(45deg, transparent 75%, rgba(255,255,255,0.04) 75%), linear-gradient(-45deg, transparent 75%, rgba(255,255,255,0.04) 75%)",
@@ -161,6 +164,13 @@ export default function ResultGrid({
                     alt={`result-${i}`}
                     className="h-full w-full object-contain transition duration-500 group-hover:scale-[1.03]"
                   />
+                  {onImageClick && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition group-hover:bg-black/20 group-hover:opacity-100">
+                      <span className="rounded-full bg-black/60 px-3 py-1.5 text-xs text-white/90 backdrop-blur">
+                        点击查看大图
+                      </span>
+                    </div>
+                  )}
                 </div>
                 {isBusy && (
                   <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm">

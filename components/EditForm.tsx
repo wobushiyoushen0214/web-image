@@ -17,9 +17,11 @@ type Props = {
   enhanceModels: string[];
   skills: Skill[];
   onOpenSkills: () => void;
+  onOpenTemplates?: () => void;
   initialPrompt: string;
   initialNegative?: string;
   initialSeed?: number | null;
+  initialSize?: string | null;
   loading: boolean;
   setLoading: (b: boolean) => void;
   setLoadingCount: (n: number) => void;
@@ -33,9 +35,11 @@ export default function EditForm({
   enhanceModels,
   skills,
   onOpenSkills,
+  onOpenTemplates,
   initialPrompt,
   initialNegative = "",
   initialSeed = null,
+  initialSize = null,
   loading,
   setLoading,
   setLoadingCount,
@@ -96,6 +100,9 @@ export default function EditForm({
       setSeedLocked(true);
     }
   }, [initialSeed]);
+  useEffect(() => {
+    if (initialSize && sizes.includes(initialSize)) setSize(initialSize);
+  }, [initialSize, sizes]);
   useEffect(() => {
     if (!models.includes(model)) setModel(models[0]);
   }, [models, model]);
@@ -351,14 +358,26 @@ export default function EditForm({
 
       <div>
         <div className="mb-1 flex items-center justify-between">
-          <button
-            type="button"
-            onClick={() => setSnippetsOpen(true)}
-            className="rounded-md bg-white/5 px-2.5 py-1 text-[11px] text-white/70 transition hover:bg-white/10 hover:text-white"
-            title="打开 Prompt 片段库"
-          >
-            🧩 片段库
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setSnippetsOpen(true)}
+              className="rounded-md bg-white/5 px-2.5 py-1 text-[11px] text-white/70 transition hover:bg-white/10 hover:text-white"
+              title="打开 Prompt 片段库"
+            >
+              🧩 片段库
+            </button>
+            {onOpenTemplates && (
+              <button
+                type="button"
+                onClick={onOpenTemplates}
+                className="rounded-md bg-white/5 px-2.5 py-1 text-[11px] text-white/70 transition hover:bg-white/10 hover:text-white"
+                title="从预设模板一键填充完整参数"
+              >
+                📋 模板
+              </button>
+            )}
+          </div>
           <RefinePopover
             value={prompt}
             onChange={setPrompt}

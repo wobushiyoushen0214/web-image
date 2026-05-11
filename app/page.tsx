@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import GenerateForm from "@/components/GenerateForm";
 import EditForm from "@/components/EditForm";
 import ResultGrid from "@/components/ResultGrid";
@@ -10,8 +10,12 @@ import BatchPanel, { type BatchTask } from "@/components/BatchPanel";
 import BatchResultMatrix from "@/components/BatchResultMatrix";
 import StoryboardPanel, { type StoryboardConfig, type StoryboardScene } from "@/components/StoryboardPanel";
 import StoryboardResult from "@/components/StoryboardResult";
-import { HistoryItem, loadHistory, saveHistoryItem, normalizeImages, toggleStar } from "@/lib/history";
+import ImageLightbox from "@/components/ImageLightbox";
+import TemplateDrawer from "@/components/TemplateDrawer";
+import QueuePanel, { type QueueItem } from "@/components/QueuePanel";
+import { HistoryItem, loadHistory, saveHistoryItem, normalizeImages, toggleStar, genId } from "@/lib/history";
 import { Skill, loadSkills } from "@/lib/skills";
+import type { Template } from "@/lib/templates";
 
 type Tab = "generate" | "edit" | "batch" | "storyboard";
 
@@ -34,6 +38,11 @@ export default function Page() {
   const [activeSeed, setActiveSeed] = useState<number | null>(null);
   const [skills, setSkills] = useState<Skill[]>([]);
   const [skillsOpen, setSkillsOpen] = useState(false);
+
+  const [lightbox, setLightbox] = useState<{ images: string[]; index: number; compare?: string } | null>(null);
+  const [templateOpen, setTemplateOpen] = useState(false);
+  const [queue, setQueue] = useState<QueueItem[]>([]);
+  const queueAbortMap = useRef<Map<string, AbortController>>(new Map());
 
   const [batchTasks, setBatchTasks] = useState<BatchTask[]>([]);
   const [batchSizes, setBatchSizes] = useState<string[]>([]);
@@ -278,8 +287,99 @@ export default function Page() {
     });
   };
 
+  const onOpenLightbox = (imgs: string[], index: number, compare?: string) => {
+    setLightbox({ images: imgs, index, compare });
+  };
+
+  const onApplyTemplate = (t: Template) => {
+    setActivePrompt(t.prompt);
+    if (t.negative) setActiveNegative(t.negative);
+    if (t.size) setActiveSize(t.size);
+  };
+
+  const [activeSize, setActiveSize] = useState<string | null>(null);
+
+  const addToQueue = useCallback((prompt: string, model: string, size: string, n: number) => {
+    const items: QueueItem[] = Array.from({ length: n }, () => ({
+      id: genId(),
+      prompt,
+      status: "pending" as const,
+    }));
+    setQueue((prev) => [...prev, ...items]);
+    return items.map((x) => x.id);
+  }, []);
+
+  const cancelQueueItem = useCallback((id: string) => {
+    const ctrl = queueAbortMap.current.get(id);
+    if (ctrl) ctrl.abort();
+    setQueue((prev) =>
+      prev.map((x) => (x.id === id && (x.status === "pending" || x.status === "running")
+        ? { ...x, status: "cancelled" as const }
+        : x)),
+    );
+  }, []);
+
+  const cancelAllQueue = useCallback(() => {
+    queueAbortMap.current.forEach((ctrl) => ctrl.abort());
+    setQueue((prev) =>
+      prev.map((x) => (x.status === "pending" || x.status === "running"
+        ? { ...x, status: "cancelled" as const }
+        : x)),
+    );
+  }, []);
+
+  const retryQueueItem = useCallback((id: string) => {
+    setQueue((prev) =>
+      prev.map((x) => (x.id === id ? { ...x, status: "pending" as const, error: undefined } : x)),
+    );
+  }, []);
+
+  const clearQueue = useCallback(() => setQueue([]), []);
+
+  const exportZip = async (items: HistoryItem[]) => {
+    const urls = items.flatMap((it) => it.images);
+    if (!urls.length) return;
+    setError(null);
+    try {
+      const { default: JSZip } = await import("jszip");
+      const zip = new JSZip();
+      await Promise.all(
+        urls.map(async (url, i) => {
+          const res = await fetch(url);
+          const blob = await res.blob();
+          const ext = blob.type.includes("png") ? "png" : "jpg";
+          zip.file(`image-${i + 1}.${ext}`, blob);
+        }),
+      );
+      const content = await zip.generateAsync({ type: "blob" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(content);
+      a.download = `web-image-export-${Date.now()}.zip`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    } catch (e) {
+      setError(`导出失败：${e instanceof Error ? e.message : String(e)}`);
+    }
+  };
+
   return (
     <main className="mx-auto min-h-screen max-w-[1400px] px-4 py-6 lg:px-8">
+      {lightbox && (
+        <ImageLightbox
+          images={lightbox.images}
+          initialIndex={lightbox.index}
+          compareImage={lightbox.compare}
+          onClose={() => setLightbox(null)}
+        />
+      )}
+      <TemplateDrawer
+        open={templateOpen}
+        onClose={() => setTemplateOpen(false)}
+        onApply={onApplyTemplate}
+        currentPrompt={activePrompt}
+        currentNegative={activeNegative}
+        currentSize={activeSize ?? undefined}
+      />
       <header className="mb-8 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-accent to-pink-500 text-lg font-bold text-white shadow-lg shadow-accent/30">
@@ -354,9 +454,11 @@ export default function Page() {
               enhanceModels={enhanceModels}
               skills={skills}
               onOpenSkills={() => setSkillsOpen(true)}
+              onOpenTemplates={() => setTemplateOpen(true)}
               initialPrompt={activePrompt}
               initialNegative={activeNegative}
               initialSeed={activeSeed}
+              initialSize={activeSize}
               loading={loading}
               setLoading={setLoading}
               setLoadingCount={setLoadingCount}
@@ -371,9 +473,11 @@ export default function Page() {
               enhanceModels={enhanceModels}
               skills={skills}
               onOpenSkills={() => setSkillsOpen(true)}
+              onOpenTemplates={() => setTemplateOpen(true)}
               initialPrompt={activePrompt}
               initialNegative={activeNegative}
               initialSeed={activeSeed}
+              initialSize={activeSize}
               loading={loading}
               setLoading={setLoading}
               setLoadingCount={setLoadingCount}
@@ -413,6 +517,13 @@ export default function Page() {
               <div className="mt-1 text-red-200/80">{error}</div>
             </div>
           )}
+          <QueuePanel
+            items={queue}
+            onCancel={cancelQueueItem}
+            onCancelAll={cancelAllQueue}
+            onRetry={retryQueueItem}
+            onClear={clearQueue}
+          />
           {tab === "batch" ? (
             <BatchResultMatrix
               tasks={batchTasks}
@@ -436,6 +547,7 @@ export default function Page() {
               starred={currentItem?.starred ?? false}
               onTweak={onTweak}
               onToggleStar={currentItem ? onToggleCurrentStar : undefined}
+              onImageClick={(idx) => onOpenLightbox(images, idx)}
               onPostProcessed={(next) => {
                 setImages(next);
                 if (currentItem) {
@@ -447,7 +559,7 @@ export default function Page() {
               setError={setError}
             />
           )}
-          <HistoryPanel items={history} onPick={onPickHistory} onChange={setHistory} />
+          <HistoryPanel items={history} onPick={onPickHistory} onChange={setHistory} onExportZip={exportZip} />
         </section>
       </div>
     </main>
