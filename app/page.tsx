@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import GenerateForm from "@/components/GenerateForm";
 import EditForm from "@/components/EditForm";
 import ResultGrid from "@/components/ResultGrid";
@@ -11,11 +11,17 @@ import BatchResultMatrix from "@/components/BatchResultMatrix";
 import StoryboardPanel, { type StoryboardConfig, type StoryboardScene } from "@/components/StoryboardPanel";
 import StoryboardResult from "@/components/StoryboardResult";
 import ImageLightbox from "@/components/ImageLightbox";
+import ImageCompare from "@/components/ImageCompare";
 import TemplateDrawer from "@/components/TemplateDrawer";
 import QueuePanel, { type QueueItem } from "@/components/QueuePanel";
+import ShortcutsHelp, { useGlobalShortcuts } from "@/components/ShortcutsHelp";
+import ViewModeToggle, { type ViewMode } from "@/components/ViewModeToggle";
+import { useToast } from "@/components/Toast";
 import { HistoryItem, loadHistory, saveHistoryItem, normalizeImages, toggleStar, genId } from "@/lib/history";
 import { Skill, loadSkills } from "@/lib/skills";
 import type { Template } from "@/lib/templates";
+import { recordGenTime, estimateGenTime } from "@/lib/gen-stats";
+import { saveDraft, loadDraft, clearDraft } from "@/lib/draft";
 
 type Tab = "generate" | "edit" | "batch" | "storyboard";
 
@@ -43,6 +49,23 @@ export default function Page() {
   const [templateOpen, setTemplateOpen] = useState(false);
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const queueAbortMap = useRef<Map<string, AbortController>>(new Map());
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>("grid");
+  const [snippetsOpen2, setSnippetsOpen2] = useState(false);
+  const [compareState, setCompareState] = useState<{ a: string; b: string } | null>(null);
+  const { toast } = useToast();
+
+  const TABS: Tab[] = ["generate", "edit", "batch", "storyboard"];
+  const shortcutHandlers = useMemo(() => ({
+    onTab: (idx: number) => setTab(TABS[idx]),
+    onTemplate: () => setTemplateOpen(true),
+    onSnippets: () => setSnippetsOpen2((v) => !v),
+    onFullscreen: () => {
+      if (images.length > 0) setLightbox({ images, index: 0 });
+    },
+    onHelp: () => setShortcutsOpen(true),
+  }), [images]);
+  useGlobalShortcuts(shortcutHandlers);
 
   const [batchTasks, setBatchTasks] = useState<BatchTask[]>([]);
   const [batchSizes, setBatchSizes] = useState<string[]>([]);
@@ -66,12 +89,27 @@ export default function Page() {
       .catch(() => {});
     setHistory(loadHistory());
     setSkills(loadSkills());
+    const draft = loadDraft();
+    if (draft) {
+      if (draft.prompt) setActivePrompt(draft.prompt);
+      if (draft.negative) setActiveNegative(draft.negative);
+      if (draft.tab) setTab(draft.tab as Tab);
+    }
   }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      saveDraft({ prompt: activePrompt, negative: activeNegative, tab });
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [activePrompt, activeNegative, tab]);
 
   const onResult = (item: HistoryItem) => {
     setImages(item.images);
     setCurrentItem(item);
     setHistory(saveHistoryItem(item));
+    clearDraft();
+    toast(`生成完成 · ${item.images.length} 张图片`, "success");
   };
 
   const onPickHistory = (item: HistoryItem) => {
@@ -357,9 +395,14 @@ export default function Page() {
       a.download = `web-image-export-${Date.now()}.zip`;
       a.click();
       URL.revokeObjectURL(a.href);
+      toast(`已导出 ${urls.length} 张图片`, "success");
     } catch (e) {
       setError(`导出失败：${e instanceof Error ? e.message : String(e)}`);
     }
+  };
+
+  const onCompareImages = (a: string, b: string) => {
+    setCompareState({ a, b });
   };
 
   return (
@@ -380,6 +423,16 @@ export default function Page() {
         currentNegative={activeNegative}
         currentSize={activeSize ?? undefined}
       />
+      <ShortcutsHelp open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
+      {compareState && (
+        <ImageCompare
+          imageA={compareState.a}
+          imageB={compareState.b}
+          onClose={() => setCompareState(null)}
+          labelA="图片 A"
+          labelB="图片 B"
+        />
+      )}
       <header className="mb-8 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-accent to-pink-500 text-lg font-bold text-white shadow-lg shadow-accent/30">
@@ -390,14 +443,23 @@ export default function Page() {
             <p className="text-xs text-white/40">OpenAI 兼容生图 · gpt-image-2</p>
           </div>
         </div>
-        <a
-          href="https://github.com"
-          target="_blank"
-          rel="noreferrer"
-          className="text-xs text-white/40 transition hover:text-white/80"
-        >
-          每小时限额 20 次
-        </a>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShortcutsOpen(true)}
+            className="rounded-md bg-white/5 px-2 py-1 text-[11px] text-white/40 transition hover:bg-white/10 hover:text-white/70"
+            title="键盘快捷键"
+          >
+            ⌨ ?
+          </button>
+          <a
+            href="https://github.com"
+            target="_blank"
+            rel="noreferrer"
+            className="text-xs text-white/40 transition hover:text-white/80"
+          >
+            每小时限额 20 次
+          </a>
+        </div>
       </header>
 
       <SkillsDrawer open={skillsOpen} onClose={() => setSkillsOpen(false)} onChange={setSkills} />
@@ -524,6 +586,11 @@ export default function Page() {
             onRetry={retryQueueItem}
             onClear={clearQueue}
           />
+          {tab !== "batch" && tab !== "storyboard" && (
+            <div className="flex items-center justify-end">
+              <ViewModeToggle mode={viewMode} onChange={setViewMode} />
+            </div>
+          )}
           {tab === "batch" ? (
             <BatchResultMatrix
               tasks={batchTasks}
@@ -545,6 +612,7 @@ export default function Page() {
               seed={currentItem?.seed ?? null}
               prompt={currentItem?.prompt}
               starred={currentItem?.starred ?? false}
+              viewMode={viewMode}
               onTweak={onTweak}
               onToggleStar={currentItem ? onToggleCurrentStar : undefined}
               onImageClick={(idx) => onOpenLightbox(images, idx)}
@@ -559,7 +627,7 @@ export default function Page() {
               setError={setError}
             />
           )}
-          <HistoryPanel items={history} onPick={onPickHistory} onChange={setHistory} onExportZip={exportZip} />
+          <HistoryPanel items={history} onPick={onPickHistory} onChange={setHistory} onExportZip={exportZip} onCompare={onCompareImages} />
         </section>
       </div>
     </main>

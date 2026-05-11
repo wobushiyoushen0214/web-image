@@ -8,9 +8,10 @@ type Props = {
   onPick: (item: HistoryItem) => void;
   onChange: (items: HistoryItem[]) => void;
   onExportZip?: (items: HistoryItem[]) => void;
+  onCompare?: (a: string, b: string) => void;
 };
 
-export default function HistoryPanel({ items, onPick, onChange, onExportZip }: Props) {
+export default function HistoryPanel({ items, onPick, onChange, onExportZip, onCompare }: Props) {
   const [query, setQuery] = useState("");
   const [starredOnly, setStarredOnly] = useState(false);
   const [selecting, setSelecting] = useState(false);
@@ -89,6 +90,17 @@ export default function HistoryPanel({ items, onPick, onChange, onExportZip }: P
             title={selecting ? (selected.size > 0 ? "导出选中项" : "取消选择") : "选择并导出 ZIP"}
           >
             {selecting ? (selected.size > 0 ? `↓ 导出 ${selected.size} 项` : "取消选择") : "↓ 导出"}
+          </button>
+        )}
+        {selecting && selected.size === 2 && onCompare && (
+          <button
+            onClick={() => {
+              const imgs = selectedItems.map((x) => x.images[0]);
+              if (imgs.length === 2) onCompare(imgs[0], imgs[1]);
+            }}
+            className="rounded-md border border-accent/60 bg-accent/15 px-2 py-1 text-[11px] text-accent transition hover:bg-accent/25"
+          >
+            ⇔ 对比
           </button>
         )}
         {selecting && (

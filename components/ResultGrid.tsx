@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { normalizeImages } from "@/lib/history";
+import type { ViewMode } from "./ViewModeToggle";
 
 type Props = {
   images: string[];
@@ -10,6 +11,7 @@ type Props = {
   seed?: number | null;
   prompt?: string;
   starred?: boolean;
+  viewMode?: ViewMode;
   onTweak?: () => void;
   onToggleStar?: () => void;
   onImageClick?: (index: number) => void;
@@ -26,6 +28,7 @@ export default function ResultGrid({
   seed,
   prompt,
   starred,
+  viewMode = "grid",
   onTweak,
   onToggleStar,
   onImageClick,
@@ -125,7 +128,13 @@ export default function ResultGrid({
           </div>
         </div>
       )}
-      <div className="grid w-full grid-cols-[repeat(auto-fit,minmax(260px,480px))] justify-center gap-4">
+      <div className={
+        viewMode === "large"
+          ? "grid w-full grid-cols-1 gap-4"
+          : viewMode === "masonry"
+          ? "columns-2 gap-4 space-y-4 lg:columns-3"
+          : "grid w-full grid-cols-[repeat(auto-fit,minmax(260px,480px))] justify-center gap-4"
+      }>
         {loading &&
           Array.from({ length: Math.max(1, loadingCount) }).map((_, i) => (
             <div

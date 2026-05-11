@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { HistoryItem, genId, normalizeImages } from "@/lib/history";
 import type { Skill } from "@/lib/skills";
 import { composePrompt } from "@/lib/skills";
+import { recordGenTime, estimateGenTime } from "@/lib/gen-stats";
 import PromptEditor from "./PromptEditor";
 import AdvancedControls from "./AdvancedControls";
 import SnippetsDrawer from "./SnippetsDrawer";
@@ -95,6 +96,7 @@ export default function GenerateForm({
     setLoadingCount(n);
     setLoading(true);
     setError(null);
+    const startTime = Date.now();
     try {
       const res = await fetch("/api/generate", {
         method: "POST",
@@ -116,11 +118,11 @@ export default function GenerateForm({
         throw new Error(`HTTP ${res.status}：${raw.slice(0, 300)}`);
       }
       if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
-      console.log("[generate] response:", data);
       const images = normalizeImages(data);
       if (!images.length) throw new Error(`无返回图片，原始响应：${JSON.stringify(data).slice(0, 200)}`);
       const returnedSeed = typeof data?.seed === "number" ? data.seed : undefined;
       if (returnedSeed != null && !seedLocked) setSeed(String(returnedSeed));
+      recordGenTime(model, size, Date.now() - startTime);
       onResult({
         id: genId(),
         mode: "generate",
@@ -260,9 +262,19 @@ export default function GenerateForm({
           <>
             <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
             生成中…
+            {(() => {
+              const est = estimateGenTime(model, size);
+              return est ? <span className="ml-1 text-xs opacity-60">~{Math.round(est / 1000)}s</span> : null;
+            })()}
           </>
         ) : (
-          "开始生成"
+          <>
+            开始生成
+            {(() => {
+              const est = estimateGenTime(model, size);
+              return est ? <span className="ml-1 text-xs opacity-50">~{Math.round(est / 1000)}s</span> : null;
+            })()}
+          </>
         )}
       </button>
     </div>
