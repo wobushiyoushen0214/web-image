@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { RELAY_BASE_URL, RELAY_API_KEY } from "@/lib/config";
+import { RELAY_BASE_URL, getRelayApiKeyForModel } from "@/lib/config";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { withNormalizedUpstreamError } from "@/lib/upstream-error";
 
@@ -14,10 +14,6 @@ export async function POST(req: NextRequest) {
       { error: `Rate limit exceeded. Try again after ${new Date(rl.resetAt).toISOString()}` },
       { status: 429, headers: { "X-RateLimit-Remaining": String(rl.remaining) } },
     );
-  }
-
-  if (!RELAY_API_KEY) {
-    return NextResponse.json({ error: "Server is missing RELAY_API_KEY" }, { status: 500 });
   }
 
   const inForm = await req.formData().catch(() => null);
@@ -47,6 +43,12 @@ export async function POST(req: NextRequest) {
     if (Number.isFinite(s)) userSeed = Math.floor(s);
   }
   const responseSeed = userSeed ?? Math.floor(Math.random() * 2_147_483_647);
+  const modelValue = inForm.get("model");
+  const model = typeof modelValue === "string" && modelValue.trim() ? modelValue.trim() : "gpt-image-2";
+  const apiKey = getRelayApiKeyForModel(model);
+  if (!apiKey) {
+    return NextResponse.json({ error: `Server is missing API key for model ${model}` }, { status: 500 });
+  }
 
   const negative = typeof inForm.get("negative_prompt") === "string"
     ? String(inForm.get("negative_prompt")).trim()
@@ -56,7 +58,7 @@ export async function POST(req: NextRequest) {
     : prompt;
 
   const outForm = new FormData();
-  outForm.append("model", String(inForm.get("model") ?? "gpt-image-2"));
+  outForm.append("model", model);
   outForm.append("prompt", finalPrompt);
   outForm.append("n", String(inForm.get("n") ?? "1"));
   outForm.append("size", String(inForm.get("size") ?? "1024x1024"));
@@ -67,7 +69,7 @@ export async function POST(req: NextRequest) {
 
   const upstream = await fetch(`${RELAY_BASE_URL}/images/edits`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${RELAY_API_KEY}` },
+    headers: { Authorization: `Bearer ${apiKey}` },
     body: outForm,
     signal: AbortSignal.timeout(270_000),
   }).catch((e: Error) => {
