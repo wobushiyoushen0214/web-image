@@ -26,7 +26,7 @@ npm run dev
 | `RELAY_BASE_URL` | 否 | 中转站 base URL，默认 `https://freeapi.dgbmc.top/v1` |
 | `RELAY_API_KEY` | 是 | 中转站 API Key |
 | `RELAY_MODELS` | 否 | 逗号分隔的模型列表，默认 `gpt-image-2` |
-| `RELAY_EDIT_MODELS` | 否 | 图生图/编辑可选模型列表，默认跟随 `RELAY_MODELS`，会排除仅文生图模型 |
+| `RELAY_EDIT_MODELS` | 否 | 图生图/编辑可选模型列表，默认跟随全部生图模型，可手动覆盖 |
 | `RELAY_MODEL_API_KEYS` | 否 | 模型专用 API Key，格式为 `model=key,another-model=another-key`；配置后模型会自动加入可选列表 |
 | `RATE_LIMIT_PER_HOUR` | 否 | 每个 IP 每小时调用上限，默认 `20` |
 | `KV_REST_API_URL` | 否 | Vercel KV / Upstash Redis REST URL |

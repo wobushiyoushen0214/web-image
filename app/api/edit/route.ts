@@ -3,7 +3,6 @@ import {
   RELAY_BASE_URL,
   getRelayApiKeyForModel,
   isGrokImagineModel,
-  isTextToImageOnlyModel,
 } from "@/lib/config";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { withNormalizedUpstreamError } from "@/lib/upstream-error";
@@ -50,12 +49,6 @@ export async function POST(req: NextRequest) {
   const responseSeed = userSeed ?? Math.floor(Math.random() * 2_147_483_647);
   const modelValue = inForm.get("model");
   const model = typeof modelValue === "string" && modelValue.trim() ? modelValue.trim() : "gpt-image-2";
-  if (isTextToImageOnlyModel(model)) {
-    return NextResponse.json(
-      { error: `${model} 只支持文生图，不支持图生图；请切换 gpt-image-2 或配置可编辑模型` },
-      { status: 400 },
-    );
-  }
   const apiKey = getRelayApiKeyForModel(model);
   if (!apiKey) {
     return NextResponse.json({ error: `Server is missing API key for model ${model}` }, { status: 500 });
@@ -82,13 +75,14 @@ export async function POST(req: NextRequest) {
   if (isGrokImagine) {
     const imageBytes = Buffer.from(await image.arrayBuffer());
     const mime = image.type || "image/png";
+    const size = typeof inForm.get("size") === "string" ? String(inForm.get("size")) : "1024x1024";
     upstreamBody = JSON.stringify({
       model,
       prompt: finalPrompt,
-      image: {
-        type: "image_url",
-        url: `data:${mime};base64,${imageBytes.toString("base64")}`,
-      },
+      n: Math.min(Math.max(Number(inForm.get("n") ?? 1), 1), 4),
+      size,
+      reference_image: `data:${mime};base64,${imageBytes.toString("base64")}`,
+      response_format: "url",
     });
     headers = {
       ...headers,
@@ -106,7 +100,7 @@ export async function POST(req: NextRequest) {
     upstreamBody = outForm;
   }
 
-  const upstream = await fetch(`${RELAY_BASE_URL}/images/edits`, {
+  const upstream = await fetch(`${RELAY_BASE_URL}/images/${isGrokImagine ? "generations" : "edits"}`, {
     method: "POST",
     headers,
     body: upstreamBody,
