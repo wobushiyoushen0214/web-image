@@ -29,6 +29,7 @@ type Tab = "generate" | "edit" | "batch" | "storyboard";
 export default function Page() {
   const [tab, setTab] = useState<Tab>("generate");
   const [models, setModels] = useState<string[]>(["gpt-image-2"]);
+  const [editModels, setEditModels] = useState<string[]>(["gpt-image-2"]);
   const [sizes, setSizes] = useState<string[]>(["1024x1024", "1024x1536", "1536x1024", "auto"]);
   const [enhanceModels, setEnhanceModels] = useState<string[]>([
     "z-ai/glm5",
@@ -85,6 +86,7 @@ export default function Page() {
       .then((r) => r.json())
       .then((d) => {
         if (Array.isArray(d.models) && d.models.length) setModels(d.models);
+        if (Array.isArray(d.editModels) && d.editModels.length) setEditModels(d.editModels);
         if (Array.isArray(d.sizes) && d.sizes.length) setSizes(d.sizes);
         if (Array.isArray(d.enhanceModels) && d.enhanceModels.length) setEnhanceModels(d.enhanceModels);
       })
@@ -533,7 +535,7 @@ export default function Page() {
           )}
           {tab === "edit" && (
             <EditForm
-              models={models}
+              models={editModels}
               sizes={sizes}
               enhanceModels={enhanceModels}
               skills={skills}

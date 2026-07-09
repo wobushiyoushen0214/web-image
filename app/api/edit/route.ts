@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { RELAY_BASE_URL, getRelayApiKeyForModel, isGrokImagineModel } from "@/lib/config";
+import {
+  RELAY_BASE_URL,
+  getRelayApiKeyForModel,
+  isGrokImagineModel,
+  isTextToImageOnlyModel,
+} from "@/lib/config";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { withNormalizedUpstreamError } from "@/lib/upstream-error";
 
@@ -45,6 +50,12 @@ export async function POST(req: NextRequest) {
   const responseSeed = userSeed ?? Math.floor(Math.random() * 2_147_483_647);
   const modelValue = inForm.get("model");
   const model = typeof modelValue === "string" && modelValue.trim() ? modelValue.trim() : "gpt-image-2";
+  if (isTextToImageOnlyModel(model)) {
+    return NextResponse.json(
+      { error: `${model} 只支持文生图，不支持图生图；请切换 gpt-image-2 或配置可编辑模型` },
+      { status: 400 },
+    );
+  }
   const apiKey = getRelayApiKeyForModel(model);
   if (!apiKey) {
     return NextResponse.json({ error: `Server is missing API key for model ${model}` }, { status: 500 });

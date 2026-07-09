@@ -5,12 +5,11 @@ export const RELAY_MODEL_API_KEYS = parseModelApiKeys(process.env.RELAY_MODEL_AP
 export const ENHANCE_BASE_URL = process.env.ENHANCE_BASE_URL ?? RELAY_BASE_URL;
 export const ENHANCE_API_KEY = process.env.ENHANCE_API_KEY ?? RELAY_API_KEY;
 
-const RELAY_MODELS = (process.env.RELAY_MODELS ?? "gpt-image-2")
-  .split(",")
-  .map((s) => s.trim())
-  .filter(Boolean);
+const RELAY_MODELS = parseModelList(process.env.RELAY_MODELS ?? "gpt-image-2");
 
 export const MODELS = Array.from(new Set([...RELAY_MODELS, ...Object.keys(RELAY_MODEL_API_KEYS)]));
+export const EDIT_MODELS = parseModelList(process.env.RELAY_EDIT_MODELS ?? RELAY_MODELS.join(","))
+  .filter((model) => !isTextToImageOnlyModel(model));
 
 export const ENHANCE_MODELS = (process.env.ENHANCE_MODELS ?? "z-ai/glm5,moonshotai/kimi-k2-thinking")
   .split(",")
@@ -21,6 +20,13 @@ export const DESCRIBE_MODEL = process.env.DESCRIBE_MODEL ?? "z-ai/glm-4.5v";
 
 export const SIZES = ["1024x1024", "1024x1536", "1536x1024", "auto"] as const;
 export type Size = (typeof SIZES)[number];
+
+function parseModelList(value: string): string[] {
+  return value
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
 
 function parseModelApiKeys(value: string | undefined): Record<string, string> {
   if (!value) return {};
@@ -43,4 +49,8 @@ export function getRelayApiKeyForModel(model: string) {
 
 export function isGrokImagineModel(model: string) {
   return model.startsWith("grok-imagine-") || model.includes("/grok-imagine-");
+}
+
+export function isTextToImageOnlyModel(model: string) {
+  return model === "grok-imagine-image-lite" || model.endsWith("/grok-imagine-image-lite");
 }
