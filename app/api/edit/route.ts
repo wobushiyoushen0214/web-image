@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { RELAY_BASE_URL, getRelayApiKeyForModel } from "@/lib/config";
+import { RELAY_BASE_URL, getRelayApiKeyForModel, isGrokImagineModel } from "@/lib/config";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { withNormalizedUpstreamError } from "@/lib/upstream-error";
 
@@ -57,20 +57,48 @@ export async function POST(req: NextRequest) {
     ? `${prompt}\n\nNegative prompt (avoid these): ${negative}`
     : prompt;
 
-  const outForm = new FormData();
-  outForm.append("model", model);
-  outForm.append("prompt", finalPrompt);
-  outForm.append("n", String(inForm.get("n") ?? "1"));
-  outForm.append("size", String(inForm.get("size") ?? "1024x1024"));
-  if (userSeed !== null) outForm.append("seed", String(userSeed));
-  outForm.append("image", image, image.name || "image.png");
   const mask = inForm.get("mask");
-  if (mask instanceof File) outForm.append("mask", mask, mask.name || "mask.png");
+  const isGrokImagine = isGrokImagineModel(model);
+  if (isGrokImagine && mask instanceof File) {
+    return NextResponse.json(
+      { error: "Grok 图生图不支持蒙版/扩图，请移除蒙版或切换其它编辑模型" },
+      { status: 400 },
+    );
+  }
+
+  let upstreamBody: BodyInit;
+  let headers: HeadersInit = { Authorization: `Bearer ${apiKey}` };
+  if (isGrokImagine) {
+    const imageBytes = Buffer.from(await image.arrayBuffer());
+    const mime = image.type || "image/png";
+    upstreamBody = JSON.stringify({
+      model,
+      prompt: finalPrompt,
+      image: {
+        type: "image_url",
+        url: `data:${mime};base64,${imageBytes.toString("base64")}`,
+      },
+    });
+    headers = {
+      ...headers,
+      "Content-Type": "application/json",
+    };
+  } else {
+    const outForm = new FormData();
+    outForm.append("model", model);
+    outForm.append("prompt", finalPrompt);
+    outForm.append("n", String(inForm.get("n") ?? "1"));
+    outForm.append("size", String(inForm.get("size") ?? "1024x1024"));
+    if (userSeed !== null) outForm.append("seed", String(userSeed));
+    outForm.append("image", image, image.name || "image.png");
+    if (mask instanceof File) outForm.append("mask", mask, mask.name || "mask.png");
+    upstreamBody = outForm;
+  }
 
   const upstream = await fetch(`${RELAY_BASE_URL}/images/edits`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}` },
-    body: outForm,
+    headers,
+    body: upstreamBody,
     signal: AbortSignal.timeout(270_000),
   }).catch((e: Error) => {
     return new Response(

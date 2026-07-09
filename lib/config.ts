@@ -40,3 +40,7 @@ function parseModelApiKeys(value: string | undefined): Record<string, string> {
 export function getRelayApiKeyForModel(model: string) {
   return RELAY_MODEL_API_KEYS[model] ?? RELAY_API_KEY;
 }
+
+export function isGrokImagineModel(model: string) {
+  return model.startsWith("grok-imagine-") || model.includes("/grok-imagine-");
+}
